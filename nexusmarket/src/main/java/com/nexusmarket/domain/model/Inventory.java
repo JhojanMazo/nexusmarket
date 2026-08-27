@@ -4,11 +4,6 @@ import com.nexusmarket.domain.enums.InventoryStatus;
 
 import java.util.Objects;
 
-/**
- * Stock, always tied to a specific Product and Warehouse.
- * Constraint: negative stock is never allowed, under any circumstance.
- * Validation: non-existent or damaged stock can never be reserved.
- */
 public class Inventory {
 
     private final String inventoryId;
@@ -43,7 +38,6 @@ public class Inventory {
         }
     }
 
-    /** Reserves units of this inventory for an order. */
     public void reserve(int quantity) {
         if (status == InventoryStatus.DAMAGED) {
             throw new IllegalStateException("Inventory marked as Damaged cannot be reserved.");
