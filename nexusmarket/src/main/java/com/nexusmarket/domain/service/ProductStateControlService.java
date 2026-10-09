@@ -1,18 +1,18 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Product;
+import com.nexusmarket.domain.model.Product;
 
 public class ProductStateControlService {
 
     public void publishProduct(Product product) {
-        product.setState("PUBLISHED");
+        product.setStatus(com.nexusmarket.domain.enums.ProductStatus.PUBLISHED);
     }
 
     public void suspendProduct(Product product) {
-        product.setState("SUSPENDED");
+        product.setStatus(com.nexusmarket.domain.enums.ProductStatus.SUSPENDED);
     }
 
     public void discontinueProduct(Product product) {
-        product.setState("DISCONTINUED");
+        product.setStatus(com.nexusmarket.domain.enums.ProductStatus.DISCONTINUED);
     }
 }

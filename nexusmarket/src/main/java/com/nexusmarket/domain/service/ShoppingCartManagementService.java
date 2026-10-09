@@ -1,11 +1,11 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Cart;
-import com.nexusmarket.domain.entity.Product;
+import com.nexusmarket.domain.model.ShoppingCart;
+import com.nexusmarket.domain.model.Product;
 
 public class ShoppingCartManagementService {
 
-    public void addItem(Cart cart, Product product, int quantity) {
+    public void addItem(com.nexusmarket.domain.model.ShoppingCart cart, Product product, int quantity) {
         if (cart == null || product == null || quantity <= 0) {
             throw new IllegalArgumentException("Invalid shopping cart parameters.");
         }

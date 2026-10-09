@@ -46,4 +46,14 @@ public class Invoice {
 
     @Override
     public int hashCode() { return Objects.hash(invoiceId); }
+
+
+    public Invoice(Order order) {
+        this.invoiceId = java.util.UUID.randomUUID().toString();
+        this.order = order;
+        this.issueDate = java.time.LocalDate.now();
+        this.subtotal = order.getTotalAmount();
+        this.total = order.getTotalAmount(); this.tax = null;
+    }
+
 }

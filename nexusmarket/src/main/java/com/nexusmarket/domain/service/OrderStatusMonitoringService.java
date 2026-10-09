@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Order;
+import com.nexusmarket.domain.model.Order;
 
 public class OrderStatusMonitoringService {
 

@@ -1,8 +1,8 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Inventory;
-import com.nexusmarket.domain.entity.Product;
-import com.nexusmarket.domain.entity.Warehouse;
+import com.nexusmarket.domain.model.Inventory;
+import com.nexusmarket.domain.model.Product;
+import com.nexusmarket.domain.model.Warehouse;
 
 public class DistributedInventoryManagementService {
 

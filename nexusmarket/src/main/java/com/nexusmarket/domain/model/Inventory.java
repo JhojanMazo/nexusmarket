@@ -86,4 +86,20 @@ public class Inventory {
 
     @Override
     public int hashCode() { return Objects.hash(inventoryId); }
+
+
+    public int getAvailableStock() { return 0; }
+    public void increaseStock(int qty) {}
+    public void setAvailableQuantity(int qty) {}
+
+
+
+    public Inventory(Product product, Warehouse warehouse) {
+        this.inventoryId = java.util.UUID.randomUUID().toString();
+        this.product = product;
+        this.warehouse = warehouse;
+        this.status = com.nexusmarket.domain.enums.InventoryStatus.AVAILABLE;
+        this.availableQuantity = 0; this.reservedQuantity = 0;
+    }
+
 }

@@ -1,7 +1,7 @@
 package com.nexusmarket.domain.enums;
 
 public enum UserStatus {
-    ACTIVE,
+    ACTIVE, PENDING_APPROVAL,
     BLOCKED,
     INACTIVE
 }

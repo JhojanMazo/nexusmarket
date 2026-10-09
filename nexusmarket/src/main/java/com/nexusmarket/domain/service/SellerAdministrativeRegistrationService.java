@@ -1,15 +1,15 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Admin;
-import com.nexusmarket.domain.entity.Seller;
+import com.nexusmarket.domain.model.User;
+import com.nexusmarket.domain.model.Seller;
 
 public class SellerAdministrativeRegistrationService {
 
-    public Seller registerSeller(Admin admin, Seller newSeller) {
+    public Seller registerSeller(com.nexusmarket.domain.model.User admin, Seller newSeller) {
         if (!admin.hasPermission("REGISTER_SELLER")) {
             throw new SecurityException("Unauthorized: Admin permission required to register sellers.");
         }
-        newSeller.setStatus("PENDING_APPROVAL");
+        newSeller.setStatus(com.nexusmarket.domain.enums.UserStatus.PENDING_APPROVAL);
         return newSeller;
     }
 }

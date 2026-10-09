@@ -1,14 +1,14 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Product;
-import com.nexusmarket.domain.entity.Variant;
+import com.nexusmarket.domain.model.Product;
+import com.nexusmarket.domain.valueobject.ProductVariant;
 
 public class ProductVariantManagementService {
 
-    public void addVariant(Product product, Variant variant) {
+    public void addVariant(Product product, com.nexusmarket.domain.valueobject.ProductVariant variant) {
         if (product == null || variant == null) {
             throw new IllegalArgumentException("Product and Variant must not be null.");
         }
-        product.getVariants().add(variant);
+        product.addVariant(variant);
     }
 }

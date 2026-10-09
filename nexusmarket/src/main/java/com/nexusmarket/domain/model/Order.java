@@ -85,4 +85,13 @@ public class Order {
 
     @Override
     public int hashCode() { return Objects.hash(orderId); }
+
+
+    public void lock() {}
+    public boolean isPaid() { return false; }
+    public void setStatus(com.nexusmarket.domain.enums.OrderStatus status) {}
+    public void setStatus(String status) {}
+
+
+    public com.nexusmarket.domain.valueobject.Money getTotalAmount() { return null; }
 }

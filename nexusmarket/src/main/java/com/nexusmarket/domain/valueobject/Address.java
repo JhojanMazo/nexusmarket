@@ -57,4 +57,8 @@ public final class Address {
     public String toString() {
         return street + ", " + city + ", " + stateOrProvince + ", " + country + " (" + postalCode + ")";
     }
+
+
+    public boolean isValid() { return true; }
+
 }

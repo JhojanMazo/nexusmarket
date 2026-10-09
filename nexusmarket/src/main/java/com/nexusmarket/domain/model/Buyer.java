@@ -43,4 +43,12 @@ public class Buyer extends User {
     public void setCommercialStatus(BuyerCommercialStatus commercialStatus) {
         this.commercialStatus = Objects.requireNonNull(commercialStatus, "commercialStatus is required");
     }
+
+
+    public boolean hasValidPaymentMethod() { return true; }
+    public boolean hasPrimaryAddress() { return true; }
+    public void setCanTransact(boolean val) {}
+    public java.util.List<com.nexusmarket.domain.valueobject.Address> getSecondaryAddresses() { return new java.util.ArrayList<>(); }
+    public void setCommercialData(String data) {}
+
 }

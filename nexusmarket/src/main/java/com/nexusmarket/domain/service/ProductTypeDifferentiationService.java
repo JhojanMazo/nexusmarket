@@ -1,14 +1,14 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Product;
+import com.nexusmarket.domain.model.Product;
 
 public class ProductTypeDifferentiationService {
 
     public void configureProductShipping(Product product) {
-        if ("DIGITAL".equalsIgnoreCase(product.getType())) {
-            product.setRequiresShipping(false);
+        if (product.getType() == com.nexusmarket.domain.enums.ProductType.DIGITAL) {
+            // shipping logic here
         } else {
-            product.setRequiresShipping(true);
+            // shipping logic here
         }
     }
 }

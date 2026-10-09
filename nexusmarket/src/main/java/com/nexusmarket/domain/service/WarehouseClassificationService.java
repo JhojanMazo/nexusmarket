@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Warehouse;
+import com.nexusmarket.domain.model.Warehouse;
 
 public class WarehouseClassificationService {
 
@@ -8,6 +8,6 @@ public class WarehouseClassificationService {
         if (!"MARKETPLACE".equalsIgnoreCase(type) && !"SELLER".equalsIgnoreCase(type)) {
             throw new IllegalArgumentException("Invalid warehouse classification type.");
         }
-        warehouse.setType(type.toUpperCase());
+        warehouse.setType(com.nexusmarket.domain.enums.WarehouseType.valueOf(type.toUpperCase()));
     }
 }

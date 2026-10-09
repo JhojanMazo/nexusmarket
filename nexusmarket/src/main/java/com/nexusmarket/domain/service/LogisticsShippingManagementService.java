@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Order;
+import com.nexusmarket.domain.model.Order;
 
 public class LogisticsShippingManagementService {
 
@@ -8,6 +8,6 @@ public class LogisticsShippingManagementService {
         if (order == null) {
             throw new IllegalArgumentException("Order cannot be null.");
         }
-        order.setStatus("DISPATCHED");
+        order.setStatus(com.nexusmarket.domain.enums.OrderStatus.SHIPPED);
     }
 }

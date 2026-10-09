@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Warehouse;
+import com.nexusmarket.domain.model.Warehouse;
 
 public class WarehouseInformationControlService {
 

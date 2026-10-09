@@ -1,7 +1,7 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Address;
-import com.nexusmarket.domain.entity.Buyer;
+import com.nexusmarket.domain.valueobject.Address;
+import com.nexusmarket.domain.model.Buyer;
 
 public class SecondaryAddressManagementService {
 

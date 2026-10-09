@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Inventory;
+import com.nexusmarket.domain.model.Inventory;
 
 public class InventoryAdjustmentsReturnsService {
 
@@ -8,13 +8,13 @@ public class InventoryAdjustmentsReturnsService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("Return quantity must be positive.");
         }
-        inventory.increaseStock(quantity);
+        inventory.restockFromReturn(quantity);
     }
 
     public void adjustStock(Inventory inventory, int realQuantity) {
         if (realQuantity < 0) {
             throw new IllegalArgumentException("Stock quantity cannot be negative.");
         }
-        inventory.setStock(realQuantity);
+        inventory.setAvailableQuantity(realQuantity);
     }
 }

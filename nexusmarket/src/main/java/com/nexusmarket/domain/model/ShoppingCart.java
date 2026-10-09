@@ -45,4 +45,8 @@ public class ShoppingCart {
 
     @Override
     public int hashCode() { return Objects.hash(cartId); }
+
+
+    public void addItem(Product product, int quantity) {}
+
 }

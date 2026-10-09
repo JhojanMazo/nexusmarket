@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.User;
+import com.nexusmarket.domain.model.User;
 import com.nexusmarket.domain.repository.UserRepository;
 
 public class UserInformationManagementService {
@@ -14,12 +14,12 @@ public class UserInformationManagementService {
     }
 
     public User registerNewUser(User user) {
-        identityValidationService.validateUniqueIdentity(user.getIdentityDocument(), user.getEmail());
+        identityValidationService.validateUniqueIdentity(user.getIdentityDocument().getNumber(), user.getEmail().getValue());
         return userRepository.save(user);
     }
 
     public User updateUserInfo(User user) {
-        if (user == null || user.getId() == null) {
+        if (user == null || user.getUserId() == null) {
             throw new IllegalArgumentException("Invalid user for update.");
         }
         return userRepository.save(user);

@@ -1,7 +1,7 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.User;
-import com.nexusmarket.domain.entity.UserStatus;
+import com.nexusmarket.domain.model.User;
+import com.nexusmarket.domain.enums.UserStatus;
 
 public class UserOperationalStateService {
 

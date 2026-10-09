@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Inventory;
+import com.nexusmarket.domain.model.Inventory;
 
 public class InventoryEntryRegistrationService {
 

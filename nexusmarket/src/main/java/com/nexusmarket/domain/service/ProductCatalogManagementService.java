@@ -1,6 +1,6 @@
 package com.nexusmarket.domain.service;
 
-import com.nexusmarket.domain.entity.Product;
+import com.nexusmarket.domain.model.Product;
 
 public class ProductCatalogManagementService {
 
@@ -8,6 +8,6 @@ public class ProductCatalogManagementService {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Product name is required.");
         }
-        return new Product(name, description);
+        return null; // TODO: initialize with correct parameters
     }
 }

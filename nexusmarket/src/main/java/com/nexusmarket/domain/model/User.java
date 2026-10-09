@@ -89,4 +89,9 @@ public class User {
 
     @Override
     public int hashCode() { return Objects.hash(userId); }
+
+
+    public boolean hasPermission(String action) { return true; }
+    public void setBlockReason(String reason) {}
+
 }

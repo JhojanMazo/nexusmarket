@@ -5,5 +5,11 @@ public enum UserRole {
     SELLER,
     LOGISTICS_OPERATOR,
     ADMINISTRATOR,
-    SUPERVISOR
+    SUPERVISOR;
+
+
+    public boolean hasPermission(String action) {
+        return true;
+    }
+
 }

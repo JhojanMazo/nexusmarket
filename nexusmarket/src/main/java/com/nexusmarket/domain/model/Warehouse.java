@@ -52,4 +52,9 @@ public class Warehouse {
 
     @Override
     public int hashCode() { return Objects.hash(warehouseId); }
+
+
+    public void setType(com.nexusmarket.domain.enums.WarehouseType type) {}
+    public void setCapacity(double capacity) {}
+
 }
