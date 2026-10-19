@@ -1,0 +1,226 @@
+package application.adapters.rest.controllers;
+
+import application.adapters.rest.dtos.requests.RegisterEmployeeUserRequestDTO;
+import application.adapters.rest.dtos.requests.ChangeCustomerStatusRequestDTO;
+import application.adapters.rest.dtos.requests.ApproveLoanRequestDTO;
+import application.adapters.rest.dtos.responses.UserResponseDTO;
+import application.adapters.rest.dtos.responses.CustomerResponseDTO;
+import application.adapters.rest.dtos.responses.LoanResponseDTO;
+import application.adapters.rest.dtos.responses.AuditLogPageResponseDTO;
+import application.adapters.rest.mappers.CustomerRestMapper;
+import application.adapters.rest.mappers.LoanRestMapper;
+import application.adapters.rest.mappers.AuditLogRestMapper;
+import application.domain.models.AuditLog;
+import application.domain.models.BankAccount;
+import application.domain.models.Customer;
+import application.domain.models.Loan;
+import application.domain.models.Operation;
+import application.domain.models.User;
+import application.domain.ports.in.InternalAnalystPort;
+import application.domain.valueobjects.CustomerStatus;
+import application.domain.valueobjects.UserStatus;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/v1/internal-analyst")
+public class InternalAnalystRestController {
+
+    private final InternalAnalystPort internalAnalystPort;
+
+    public InternalAnalystRestController(InternalAnalystPort internalAnalystPort) {
+        this.internalAnalystPort = internalAnalystPort;
+    }
+
+    @PostMapping("/users/employee")
+    public ResponseEntity<UserResponseDTO> registerEmployeeUser(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @Valid @RequestBody RegisterEmployeeUserRequestDTO requestDTO) {
+        
+        User newEmployee = new User();
+        newEmployee.setUsername(requestDTO.getUsername());
+        newEmployee.setPassword(requestDTO.getPassword());
+        newEmployee.setEmail(requestDTO.getEmail());
+        
+        if (requestDTO.getRole() != null) {
+            newEmployee.setRole(mapSystemRole(requestDTO.getRole()));
+        }
+        
+        newEmployee.setIdentification(requestDTO.getIdentification());
+        newEmployee.setName(requestDTO.getName());
+        newEmployee.setPhoneNumber(requestDTO.getPhoneNumber());
+        newEmployee.setAddress(requestDTO.getAddress());
+        
+        User created = internalAnalystPort.registerEmployeeUser(authenticatedUser, newEmployee);
+        
+        UserResponseDTO response = new UserResponseDTO();
+        response.setUserId(created.getUserId() != null ? String.valueOf(created.getUserId()) : null);
+        response.setUsername(created.getUsername());
+        response.setRole(created.getRole() != null ? created.getRole().getCode() : null);
+        response.setStatus(created.getStatus() != null ? created.getStatus().getCode() : null);
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/customers/{identification}/status")
+    public ResponseEntity<CustomerResponseDTO> changeCustomerStatus(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @PathVariable String identification,
+            @Valid @RequestBody ChangeCustomerStatusRequestDTO requestDTO) {
+        
+        Customer customer = new application.domain.models.NaturalCustomer();
+        customer.setIdentification(identification);
+        
+        CustomerStatus newStatus = mapCustomerStatus(requestDTO.getStatus());
+        Customer updated = internalAnalystPort.changeCustomerStatus(authenticatedUser, customer, newStatus);
+        return ResponseEntity.ok(CustomerRestMapper.toResponseDTO(updated));
+    }
+
+    @PatchMapping("/loans/{loanId}/approve")
+    public ResponseEntity<LoanResponseDTO> approveLoan(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @PathVariable String loanId,
+            @Valid @RequestBody ApproveLoanRequestDTO requestDTO) {
+        
+        Loan loan = new Loan();
+        loan.setIdentifier(loanId);
+        LoanRestMapper.applyApproval(loan, requestDTO);
+        
+        Loan approved = internalAnalystPort.approveLoan(authenticatedUser, loan);
+        return ResponseEntity.ok(LoanRestMapper.toResponseDTO(approved));
+    }
+
+    @PatchMapping("/loans/{loanId}/reject")
+    public ResponseEntity<LoanResponseDTO> rejectLoan(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @PathVariable String loanId) {
+        
+        Loan loan = new Loan();
+        loan.setIdentifier(loanId);
+        Loan rejected = internalAnalystPort.rejectLoan(authenticatedUser, loan);
+        return ResponseEntity.ok(LoanRestMapper.toResponseDTO(rejected));
+    }
+
+    @PostMapping("/loans/{loanId}/disburse")
+    public ResponseEntity<LoanResponseDTO> disburseLoan(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @PathVariable String loanId) {
+        
+        Loan loan = new Loan();
+        loan.setIdentifier(loanId);
+        Loan disbursed = internalAnalystPort.disburseLoan(authenticatedUser, loan, null);
+        return ResponseEntity.ok(LoanRestMapper.toResponseDTO(disbursed));
+    }
+
+    @DeleteMapping("/loans/{loanId}")
+    public ResponseEntity<Void> deleteLoan(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @PathVariable String loanId) {
+        
+        Loan loan = new Loan();
+        loan.setIdentifier(loanId);
+        internalAnalystPort.closeLoan(authenticatedUser, loan);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/audit-logs")
+    public ResponseEntity<AuditLogPageResponseDTO> consultAuditLog(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false)
+            @Pattern(regexp = "ACCOUNT_OPENING|DEPOSIT|WITHDRAWAL|ACCOUNT_BLOCKING|ACCOUNT_UNBLOCKING|ACCOUNT_CLOSING|TRANSFER_CREATION|TRANSFER_APPROVAL|TRANSFER_REJECTION|TRANSFER_EXECUTION|TRANSFER_EXPIRATION|LOAN_APPLICATION|LOAN_APPROVAL|LOAN_REJECTION|LOAN_DISBURSEMENT|LOAN_PAYMENT|LOAN_OVERDUE|LOAN_CANCELLATION|CUSTOMER_REGISTRATION|CUSTOMER_UPDATE|CUSTOMER_STATUS_CHANGE")
+            String operationType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        List<AuditLog> auditLogs = internalAnalystPort.consultAuditLog(authenticatedUser);
+        
+        // Apply filters if provided
+        if (userId != null) {
+            auditLogs = auditLogs.stream()
+                    .filter(log -> userId.equals(log.getPerformedBy()))
+                    .collect(Collectors.toList());
+        }
+        if (operationType != null) {
+            auditLogs = auditLogs.stream()
+                    .filter(log -> operationType.equals(log.getOperationType() != null ? log.getOperationType().getCode() : null))
+                    .collect(Collectors.toList());
+        }
+        
+        // Pagination
+        int start = page * size;
+        int end = Math.min(start + size, auditLogs.size());
+        List<AuditLog> pageContent = start < auditLogs.size() ? auditLogs.subList(start, end) : List.of();
+        
+        AuditLogPageResponseDTO response = new AuditLogPageResponseDTO();
+        response.setContent(pageContent.stream()
+                .map(AuditLogRestMapper::toResponseDTO)
+                .collect(Collectors.toList()));
+        response.setTotalElements(auditLogs.size());
+        response.setTotalPages((int) Math.ceil((double) auditLogs.size() / size));
+        response.setPageNumber(page);
+        response.setPageSize(size);
+        
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/operations")
+    public ResponseEntity<List<application.adapters.rest.dtos.responses.OperationResponseDTO>> consultAllOperations(
+            @AuthenticationPrincipal(expression = "user") User authenticatedUser) {
+        
+        List<Operation> operations = internalAnalystPort.consultAllOperations(authenticatedUser);
+        return ResponseEntity.ok(operations.stream()
+                .map(application.adapters.rest.mappers.OperationRestMapper::toResponseDTO)
+                .collect(Collectors.toList()));
+    }
+
+    private application.domain.valueobjects.SystemRole mapSystemRole(String code) {
+        if (code == null) {
+            return null;
+        }
+        switch (code) {
+            case "NATURAL_CUSTOMER":
+                return application.domain.valueobjects.SystemRole.NATURAL_CUSTOMER;
+            case "BUSINESS_CUSTOMER":
+                return application.domain.valueobjects.SystemRole.BUSINESS_CUSTOMER;
+            case "TELLER_EMPLOYEE":
+                return application.domain.valueobjects.SystemRole.TELLER_EMPLOYEE;
+            case "COMMERCIAL_EMPLOYEE":
+                return application.domain.valueobjects.SystemRole.COMMERCIAL_EMPLOYEE;
+            case "BUSINESS_OPERATOR":
+                return application.domain.valueobjects.SystemRole.BUSINESS_OPERATOR;
+            case "BUSINESS_SUPERVISOR":
+                return application.domain.valueobjects.SystemRole.BUSINESS_SUPERVISOR;
+            case "INTERNAL_ANALYST":
+                return application.domain.valueobjects.SystemRole.INTERNAL_ANALYST;
+            default:
+                return null;
+        }
+    }
+
+    private CustomerStatus mapCustomerStatus(String code) {
+        if (code == null) {
+            return null;
+        }
+        switch (code) {
+            case "ACTIVE":
+                return CustomerStatus.ACTIVE;
+            case "INACTIVE":
+                return CustomerStatus.INACTIVE;
+            case "BLOCKED":
+                return CustomerStatus.BLOCKED;
+            default:
+                return null;
+        }
+    }
+}
