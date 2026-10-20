@@ -1,18 +1,6 @@
-
-
-# Compiled class file
+# Java / Maven build artefacts
+/target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -21,8 +9,20 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Logs and diagnostics
+*.log
 hs_err_pid*
 replay_pid*
-construcci-n_II/
+
+# OS / IDE artefacts
 .DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Backup folder (project specific)
+nexusmarket_backup/
+
+# Environment files (if ever present)
+.env
+.env.*
