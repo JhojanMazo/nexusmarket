@@ -1,0 +1,15 @@
+package application.adapters.rest.dtos.responses;
+import application.adapters.rest.dtos.requests.AddressDTO;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+public record OrderItemResponseDTO(
+        UUID productId,
+        String productName,
+        int quantity,
+        BigDecimal unitPrice,
+        BigDecimal subtotal,
+        String currency
+) {
+}

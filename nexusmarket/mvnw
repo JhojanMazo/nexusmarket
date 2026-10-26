@@ -1,0 +1,33 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Maven Wrapper Executable for Unix
+# ----------------------------------------------------------------------------
+
+set -e
+
+# Resolve directory of this script
+PRG="$0"
+while [ -h "$PRG" ]; do
+  ls=`ls -ld "$PRG"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    PRG="$link"
+  else
+    PRG=`dirname "$PRG"`/"$link"
+  fi
+done
+BASE_DIR=`dirname "$PRG"`
+
+# If local mvn is installed, use it directly for fast local execution
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn "$@"
+fi
+
+# Fallback wrapper execution
+WRAPPER_JAR="$BASE_DIR/.mvn/wrapper/maven-wrapper.jar"
+if [ -r "$WRAPPER_JAR" ]; then
+  exec java -jar "$WRAPPER_JAR" "$@"
+else
+  echo "Error: Maven is not installed on PATH and wrapper jar was not found." >&2
+  exit 1
+fi

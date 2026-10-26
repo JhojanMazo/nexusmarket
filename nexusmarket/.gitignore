@@ -1,0 +1,35 @@
+# Java / Maven build artefacts
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven Wrapper runtime
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs and diagnostics
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS / IDE artefacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Backups
+*.bak
+nexusmarket_backup/
+
+# Environment files
+.env
+.env.*

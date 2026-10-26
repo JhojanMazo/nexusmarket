@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Relational Database: SQL Server
+  nexusmarket-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: nexusmarket-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Password123!"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Password123!' -Q 'SELECT 1' -C || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nexusmarket-net
+
+  # NoSQL Database: MongoDB for Audit & Operations
+  nexusmarket-mongo:
+    image: mongo:7.0
+    container_name: nexusmarket-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: nexusmarket_audit
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - nexusmarket-net
+
+  # NexusMarket Microservice
+  nexusmarket-app:
+    build:
+      context: ./nexusmarket
+      dockerfile: Dockerfile
+    container_name: nexusmarket-service
+    depends_on:
+      nexusmarket-db:
+        condition: service_healthy
+      nexusmarket-mongo:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: "jdbc:sqlserver://nexusmarket-db:1433;databaseName=NexusMarket;encrypt=true;trustServerCertificate=true"
+      DB_USERNAME: "sa"
+      DB_PASSWORD: "Password123!"
+      SPRING_DATA_MONGODB_URI: "mongodb://admin:password123@nexusmarket-mongo:27017/nexusmarket_audit?authSource=admin"
+      SPRING_PROFILES_ACTIVE: "prod"
+    networks:
+      - nexusmarket-net
+
+volumes:
+  sqlserver-data:
+  mongodb-data:
+
+networks:
+  nexusmarket-net:
+    driver: bridge
