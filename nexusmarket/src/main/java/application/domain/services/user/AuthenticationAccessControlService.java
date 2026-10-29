@@ -2,14 +2,11 @@ package application.domain.services.user;
 
 import application.domain.enums.UserStatus;
 import application.domain.models.User;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 1.2 Manages operational checks for account authentication.
  */
-@Service
 public class AuthenticationAccessControlService {
 
     public void validateOperationalAccess(User user) {

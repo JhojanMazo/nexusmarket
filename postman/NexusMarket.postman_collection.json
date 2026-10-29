@@ -1,0 +1,392 @@
+{
+  "info": {
+    "_postman_id": "nexusmarket-enterprise-collection-2026",
+    "name": "NexusMarket Enterprise API Collection",
+    "description": "Colección oficial de Postman para NexusMarket (Arquitectura Hexagonal / DDD). Orden recomendado de ejecución: 1. Auth & Catálogo Público -> 2. Administración (Bodegas y Staff) -> 3. Vendedores (Productos e Inventario) -> 4. Compradores (Carrito, Orden y Pago) -> 5. Operadores Logísticos (Despacho y Entrega) -> 6. Supervisores (Disputas, Devoluciones y Reportes).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwtToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Auth & Public Catalog",
+      "item": [
+        {
+          "name": "1.1 Register Buyer (Public)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) pm.environment.set('buyerId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Cliente Demo Nexus\",\n  \"email\": \"cliente.demo@nexusmarket.com\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"1020304050\",\n  \"primaryAddress\": {\n    \"street\": \"Av. El Dorado 100\",\n    \"city\": \"Bogotá\",\n    \"stateOrProvince\": \"Cundinamarca\",\n    \"country\": \"Colombia\",\n    \"postalCode\": \"110111\",\n    \"reference\": \"Apto 502\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        },
+        {
+          "name": "1.2 Login (Obtain JWT Bearer Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.token) pm.environment.set('jwtToken', res.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@nexusmarket.com\",\n  \"password\": \"ExamplePassword_NotSensitive\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "1.3 Get Published Catalog (Paginated & Cached)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/catalog?page=0&size=10"
+          }
+        },
+        {
+          "name": "1.4 Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Administrators",
+      "item": [
+        {
+          "name": "2.1 Register Logistics Operator Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) pm.environment.set('logisticsOperatorId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Operador Logístico Central\",\n  \"email\": \"operador.log@nexusmarket.com\",\n  \"documentType\": \"CC\",\n  \"documentNumber\": \"8090100\",\n  \"role\": \"LOGISTICS_OPERATOR\"\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/users/staff"
+          }
+        },
+        {
+          "name": "2.2 List Users (Paginated)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/users?page=0&size=10"
+          }
+        },
+        {
+          "name": "2.3 Create Marketplace Warehouse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.warehouseId) pm.environment.set('warehouseId', res.warehouseId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bodega Principal Norte\",\n  \"address\": {\n    \"street\": \"Autopista Norte Km 12\",\n    \"city\": \"Bogotá\",\n    \"stateOrProvince\": \"Cundinamarca\",\n    \"country\": \"Colombia\",\n    \"postalCode\": \"110121\"\n  },\n  \"type\": \"MARKETPLACE\",\n  \"capacity\": 10000.0\n}"
+            },
+            "url": "{{baseUrl}}/api/admin/warehouses"
+          }
+        },
+        {
+          "name": "2.4 Get Consolidated Administrative Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/reports/consolidated"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Sellers & Catalog/Inventory",
+      "item": [
+        {
+          "name": "3.1 Register Seller",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) pm.environment.set('sellerId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"TechStore Oficial SAS\",\n  \"email\": \"ventas@techstore.co\",\n  \"documentType\": \"NIT\",\n  \"documentNumber\": \"901555666-7\",\n  \"onboardingDate\": \"2026-10-28\"\n}"
+            },
+            "url": "{{baseUrl}}/api/sellers/register"
+          }
+        },
+        {
+          "name": "3.2 Create Physical Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.id) pm.environment.set('productId', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Teclado Mecánico Pro RGB\",\n  \"variantAttribute\": \"Switch\",\n  \"variantValue\": \"Red Linear\",\n  \"price\": 120.00,\n  \"currency\": \"USD\",\n  \"status\": \"PUBLISHED\",\n  \"type\": \"PHYSICAL\"\n}"
+            },
+            "url": "{{baseUrl}}/api/sellers/products"
+          }
+        },
+        {
+          "name": "3.3 List Seller Products (Paginated & Sorted)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/sellers/products?page=0&size=10&sortBy=name&direction=ASC"
+          }
+        },
+        {
+          "name": "3.4 Register Initial Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.inventoryId) pm.environment.set('inventoryId', res.inventoryId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"quantity\": 50\n}"
+            },
+            "url": "{{baseUrl}}/api/sellers/{{sellerId}}/inventory/initial"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Buyers, Shopping Cart & Orders",
+      "item": [
+        {
+          "name": "4.1 Create Shopping Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.cartId) pm.environment.set('cartId', res.cartId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/buyers/{{buyerId}}/cart"
+          }
+        },
+        {
+          "name": "4.2 Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 2,\n  \"unitPrice\": 120.00,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/buyers/carts/{{cartId}}/items"
+          }
+        },
+        {
+          "name": "4.3 Create Order from Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.orderId) pm.environment.set('orderId', res.orderId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cartId\": \"{{cartId}}\",\n  \"deliveryAddress\": {\n    \"street\": \"Av. El Dorado 100\",\n    \"city\": \"Bogotá\",\n    \"stateOrProvince\": \"Cundinamarca\",\n    \"country\": \"Colombia\",\n    \"postalCode\": \"110111\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/buyers/orders"
+          }
+        },
+        {
+          "name": "4.4 Pay Order (Reserves Stock & Emits OrderPaidEvent)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 240.00,\n  \"currency\": \"USD\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/buyers/orders/{{orderId}}/pay"
+          }
+        },
+        {
+          "name": "4.5 Get Buyer Orders (Paginated)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/buyers/{{buyerId}}/orders?page=0&size=10&sortBy=orderDate&direction=DESC"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Logistics Operators",
+      "item": [
+        {
+          "name": "5.1 Dispatch Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    if (res.shipmentId) pm.environment.set('shipmentId', res.shipmentId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"logisticsOperatorId\": \"{{logisticsOperatorId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logistics/shipments/dispatch"
+          }
+        },
+        {
+          "name": "5.2 Confirm Shipment Delivery",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/logistics/shipments/{{shipmentId}}/deliver"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Supervisors",
+      "item": [
+        {
+          "name": "6.1 Get Consolidated Report (Supervisor)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/supervisors/reports/consolidated"
+          }
+        },
+        {
+          "name": "6.2 Get Audit Operations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/supervisors/audit/operations"
+          }
+        }
+      ]
+    }
+  ]
+}

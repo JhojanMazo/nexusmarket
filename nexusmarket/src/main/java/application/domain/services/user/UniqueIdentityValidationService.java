@@ -4,14 +4,11 @@ import application.domain.exceptions.BusinessRuleException;
 import application.domain.ports.out.UserRepositoryPort;
 import application.domain.valueobjects.Email;
 import application.domain.valueobjects.IdentityDocument;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 1.5 Validates uniqueness constraints for identity attributes.
  */
-@Service
 public class UniqueIdentityValidationService {
 
     public void validateUniqueIdentity(UserRepositoryPort userRepository, String emailStr, String docType, String docNumber) {

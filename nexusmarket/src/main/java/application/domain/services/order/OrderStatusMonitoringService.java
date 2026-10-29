@@ -2,14 +2,11 @@ package application.domain.services.order;
 
 import application.domain.enums.OrderStatus;
 import application.domain.models.Order;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 5.4 Coordinates order lifecycle status transitions (FR-017, FR-018).
  */
-@Service
 public class OrderStatusMonitoringService {
 
     public void updateStatus(Order order, OrderStatus newStatus) {

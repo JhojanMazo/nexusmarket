@@ -2,14 +2,11 @@ package application.domain.services.inventory;
 
 import application.domain.enums.WarehouseType;
 import application.domain.models.Warehouse;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 3.2 Segregates storage facilities by ownership model.
  */
-@Service
 public class WarehouseClassificationService {
 
     public boolean isMarketplaceOwned(Warehouse warehouse) {

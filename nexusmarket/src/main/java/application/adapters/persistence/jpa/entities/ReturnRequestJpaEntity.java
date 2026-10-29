@@ -21,7 +21,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ReturnRequestJpaEntity {
+public class ReturnRequestJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "request_id", nullable = false)

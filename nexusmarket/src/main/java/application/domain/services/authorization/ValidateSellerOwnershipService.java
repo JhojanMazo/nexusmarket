@@ -1,12 +1,8 @@
 package application.domain.services.authorization;
 
 import application.domain.exceptions.UnauthorizedOperationException;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 import java.util.UUID;
-
-@Service
 public class ValidateSellerOwnershipService {
 
     public void validateOwnership(UUID sellerId, UUID productSellerId) {

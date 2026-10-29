@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ShoppingCartJpaEntity {
+public class ShoppingCartJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "cart_id", nullable = false)
@@ -35,5 +35,9 @@ public class ShoppingCartJpaEntity {
     public void addItem(CartItemJpaEntity item) {
         items.add(item);
         item.setCart(this);
+    }
+
+    public void removeItem(CartItemJpaEntity item) {
+        items.remove(item);
     }
 }

@@ -12,6 +12,9 @@ import application.adapters.rest.dtos.responses.AdministrativeReportResponseDTO;
 import application.adapters.rest.dtos.responses.BuyerResponseDTO;
 import application.adapters.rest.dtos.responses.InvoiceResponseDTO;
 import application.adapters.rest.dtos.responses.OperationResponseDTO;
+import application.adapters.rest.dtos.responses.OrderResponseDTO;
+import application.adapters.rest.dtos.responses.PageResponseDTO;
+import application.adapters.rest.dtos.responses.ProductResponseDTO;
 import application.adapters.rest.dtos.responses.RefundResponseDTO;
 import application.adapters.rest.dtos.responses.ReturnRequestResponseDTO;
 import application.adapters.rest.dtos.responses.SellerResponseDTO;
@@ -20,6 +23,7 @@ import application.adapters.rest.dtos.responses.WarehouseResponseDTO;
 import application.adapters.rest.mappers.InvoiceRestMapper;
 import application.adapters.rest.mappers.OperationRestMapper;
 import application.adapters.rest.mappers.OrderRestMapper;
+import application.adapters.rest.mappers.ProductRestMapper;
 import application.adapters.rest.mappers.RefundRestMapper;
 import application.adapters.rest.mappers.ReturnRequestRestMapper;
 import application.adapters.rest.mappers.UserRestMapper;
@@ -29,12 +33,15 @@ import application.domain.models.AdministrativeReport;
 import application.domain.models.Buyer;
 import application.domain.models.Invoice;
 import application.domain.models.Operation;
+import application.domain.models.Order;
+import application.domain.models.Product;
 import application.domain.models.Refund;
 import application.domain.models.ReturnRequest;
 import application.domain.models.Seller;
 import application.domain.models.User;
 import application.domain.models.Warehouse;
 import application.domain.ports.in.AdministratorPort;
+import application.domain.valueobjects.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -62,6 +69,8 @@ public class AdministratorRestController {
     private final WarehouseRestMapper warehouseRestMapper;
     private final ReturnRequestRestMapper returnRequestRestMapper;
     private final RefundRestMapper refundRestMapper;
+    private final OrderRestMapper orderRestMapper;
+    private final ProductRestMapper productRestMapper;
 
     @Autowired
     public AdministratorRestController(AdministratorPort adminPort,
@@ -70,7 +79,9 @@ public class AdministratorRestController {
                                         OperationRestMapper operationRestMapper,
                                         WarehouseRestMapper warehouseRestMapper,
                                         ReturnRequestRestMapper returnRequestRestMapper,
-                                        RefundRestMapper refundRestMapper) {
+                                        RefundRestMapper refundRestMapper,
+                                        OrderRestMapper orderRestMapper,
+                                        ProductRestMapper productRestMapper) {
         this.adminPort = adminPort;
         this.userRestMapper = userRestMapper;
         this.invoiceRestMapper = invoiceRestMapper;
@@ -78,6 +89,20 @@ public class AdministratorRestController {
         this.warehouseRestMapper = warehouseRestMapper;
         this.returnRequestRestMapper = returnRequestRestMapper;
         this.refundRestMapper = refundRestMapper;
+        this.orderRestMapper = orderRestMapper;
+        this.productRestMapper = productRestMapper;
+    }
+
+    public AdministratorRestController(AdministratorPort adminPort,
+                                        UserRestMapper userRestMapper,
+                                        InvoiceRestMapper invoiceRestMapper,
+                                        OperationRestMapper operationRestMapper,
+                                        WarehouseRestMapper warehouseRestMapper,
+                                        ReturnRequestRestMapper returnRequestRestMapper,
+                                        RefundRestMapper refundRestMapper) {
+        this(adminPort, userRestMapper, invoiceRestMapper, operationRestMapper,
+                warehouseRestMapper, returnRequestRestMapper, refundRestMapper,
+                new OrderRestMapper(), new ProductRestMapper());
     }
 
     public AdministratorRestController(AdministratorPort adminPort,
@@ -85,7 +110,8 @@ public class AdministratorRestController {
                                         InvoiceRestMapper invoiceRestMapper,
                                         OperationRestMapper operationRestMapper) {
         this(adminPort, userRestMapper, invoiceRestMapper, operationRestMapper,
-                new WarehouseRestMapper(), new ReturnRequestRestMapper(), new RefundRestMapper());
+                new WarehouseRestMapper(), new ReturnRequestRestMapper(), new RefundRestMapper(),
+                new OrderRestMapper(), new ProductRestMapper());
     }
 
     @PostMapping("/users/staff")
@@ -132,9 +158,11 @@ public class AdministratorRestController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<UserResponseDTO>> listAllUsers() {
+    public ResponseEntity<PageResponseDTO<UserResponseDTO>> listAllUsers(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<User> users = adminPort.listAllUsers();
-        return ResponseEntity.ok(userRestMapper.toUserResponseList(users));
+        return ResponseEntity.ok(PageResponseDTO.of(userRestMapper.toUserResponseList(users), page, size));
     }
 
     @GetMapping("/users/{userId}")
@@ -170,9 +198,11 @@ public class AdministratorRestController {
     }
 
     @GetMapping("/warehouses")
-    public ResponseEntity<List<WarehouseResponseDTO>> listWarehouses(
+    public ResponseEntity<PageResponseDTO<WarehouseResponseDTO>> listWarehouses(
             @RequestParam(name = "type", required = false) WarehouseType type,
-            @RequestParam(name = "sellerId", required = false) UUID sellerId) {
+            @RequestParam(name = "sellerId", required = false) UUID sellerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Warehouse> list;
         if (type != null) {
             list = adminPort.listWarehousesByType(type);
@@ -181,7 +211,7 @@ public class AdministratorRestController {
         } else {
             list = adminPort.listAllWarehouses();
         }
-        return ResponseEntity.ok(warehouseRestMapper.toResponseList(list));
+        return ResponseEntity.ok(PageResponseDTO.of(warehouseRestMapper.toResponseList(list), page, size));
     }
 
     @GetMapping("/warehouses/{warehouseId}")
@@ -197,10 +227,32 @@ public class AdministratorRestController {
         return ResponseEntity.ok(warehouseRestMapper.toResponse(updated));
     }
 
+    @GetMapping("/orders")
+    public ResponseEntity<PageResponseDTO<OrderResponseDTO>> listAllOrders(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "orderDate") String sortBy,
+            @RequestParam(name = "direction", defaultValue = "DESC") String direction) {
+        PageResult<Order> ordersPage = adminPort.listAllOrders(page, size, sortBy, direction);
+        return ResponseEntity.ok(PageResponseDTO.from(ordersPage, OrderRestMapper::toResponse));
+    }
+
+    @GetMapping("/products")
+    public ResponseEntity<PageResponseDTO<ProductResponseDTO>> listAllProducts(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "name") String sortBy,
+            @RequestParam(name = "direction", defaultValue = "ASC") String direction) {
+        PageResult<Product> productsPage = adminPort.listAllProducts(page, size, sortBy, direction);
+        return ResponseEntity.ok(PageResponseDTO.from(productsPage, ProductRestMapper::toResponse));
+    }
+
     @GetMapping("/returns")
-    public ResponseEntity<List<ReturnRequestResponseDTO>> listAllReturns() {
+    public ResponseEntity<PageResponseDTO<ReturnRequestResponseDTO>> listAllReturns(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<ReturnRequest> returns = adminPort.listAllReturns();
-        return ResponseEntity.ok(returnRequestRestMapper.toResponseList(returns));
+        return ResponseEntity.ok(PageResponseDTO.of(returnRequestRestMapper.toResponseList(returns), page, size));
     }
 
     @PatchMapping("/returns/{requestId}/approve")
@@ -216,9 +268,11 @@ public class AdministratorRestController {
     }
 
     @GetMapping("/refunds")
-    public ResponseEntity<List<RefundResponseDTO>> listAllRefunds() {
+    public ResponseEntity<PageResponseDTO<RefundResponseDTO>> listAllRefunds(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Refund> refunds = adminPort.listAllRefunds();
-        return ResponseEntity.ok(refundRestMapper.toResponseList(refunds));
+        return ResponseEntity.ok(PageResponseDTO.of(refundRestMapper.toResponseList(refunds), page, size));
     }
 
     @PostMapping("/refunds")
@@ -240,9 +294,11 @@ public class AdministratorRestController {
     }
 
     @GetMapping("/invoices")
-    public ResponseEntity<List<InvoiceResponseDTO>> getAllInvoices() {
+    public ResponseEntity<PageResponseDTO<InvoiceResponseDTO>> getAllInvoices(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Invoice> invoices = adminPort.getAllInvoices();
-        return ResponseEntity.ok(invoiceRestMapper.toResponseList(invoices));
+        return ResponseEntity.ok(PageResponseDTO.of(invoiceRestMapper.toResponseList(invoices), page, size));
     }
 
     @GetMapping("/invoices/{invoiceId}")
@@ -269,9 +325,11 @@ public class AdministratorRestController {
     }
 
     @GetMapping("/operations")
-    public ResponseEntity<List<OperationResponseDTO>> getAllOperations() {
+    public ResponseEntity<PageResponseDTO<OperationResponseDTO>> getAllOperations(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Operation> operations = adminPort.getAllOperations();
-        return ResponseEntity.ok(operationRestMapper.toResponseList(operations));
+        return ResponseEntity.ok(PageResponseDTO.of(operationRestMapper.toResponseList(operations), page, size));
     }
 
     @GetMapping("/operations/{operationId}")

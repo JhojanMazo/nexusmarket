@@ -4,14 +4,11 @@ import application.domain.enums.OrderStatus;
 import application.domain.models.Order;
 import application.domain.models.Shipment;
 import application.domain.models.User;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 6.2 Coordinates physical fulfillment with logistics operators (FR-021, FR-022).
  */
-@Service
 public class LogisticsShippingManagementService {
 
     public Shipment coordinateShipping(User logisticsOperator, Order order) {

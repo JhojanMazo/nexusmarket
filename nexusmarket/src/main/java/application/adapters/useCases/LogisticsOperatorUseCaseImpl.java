@@ -1,5 +1,7 @@
 package application.adapters.useCases;
 
+import application.adapters.aspect.Auditable;
+import application.domain.enums.AuditSeverity;
 import application.domain.enums.InventoryMovementType;
 import application.domain.enums.InventoryStatus;
 import application.domain.enums.OrderStatus;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Transactional(readOnly = true)
 public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
 
     private final OrderRepositoryPort orderRepository;
@@ -55,6 +58,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional
     public Order updateDeliveryStatus(UUID orderId, OrderStatus status) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden", orderId));
@@ -63,6 +67,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional
     public Order advanceOrderStatus(UUID orderId, OrderStatus nextStatus) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden", orderId));
@@ -72,6 +77,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
 
     @Override
     @Transactional
+    @Auditable(action = "ORDER_DISPATCHED", resource = "Shipment", severity = AuditSeverity.MEDIUM)
     public Shipment dispatchOrder(UUID orderId, UUID logisticsOperatorId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden", orderId));
@@ -88,6 +94,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
 
     @Override
     @Transactional
+    @Auditable(action = "SHIPMENT_DELIVERY_CONFIRMED", resource = "Shipment", severity = AuditSeverity.HIGH)
     public Shipment confirmDelivery(UUID shipmentId) {
         Shipment shipment = shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
@@ -98,23 +105,27 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Shipment getShipmentById(UUID shipmentId) {
         return shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Shipment getShipmentByOrderId(UUID orderId) {
         return shipmentRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Envío para la orden", orderId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Shipment> listShipments() {
         return shipmentRepository.findAll();
     }
 
     @Override
+    @Transactional
     public Inventory updateInventoryStatus(UUID inventoryId, InventoryStatus status) {
         Inventory inventory = inventoryRepository.findById(inventoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventario", inventoryId));
@@ -123,6 +134,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional
     public InventoryMovement registerInventoryMovement(UUID inventoryId, int quantity, InventoryMovementType type, String reference) {
         Inventory inventory = inventoryRepository.findById(inventoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Inventario", inventoryId));
@@ -143,11 +155,13 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<InventoryMovement> getInventoryMovements(UUID inventoryId) {
         return inventoryMovementRepository.findByInventoryId(inventoryId);
     }
 
     @Override
+    @Transactional
     public InventoryMovement registerMovement(UUID inventoryId, int quantity, String movementType, String reason) {
         InventoryMovementType type;
         try {
@@ -167,6 +181,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional
     public void reserveInventory(UUID productId, int quantity) {
         List<Inventory> list = inventoryRepository.findByProductId(productId);
         if (!list.isEmpty()) {
@@ -177,6 +192,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     }
 
     @Override
+    @Transactional
     public void releaseInventory(UUID productId, int quantity) {
         List<Inventory> list = inventoryRepository.findByProductId(productId);
         if (!list.isEmpty()) {

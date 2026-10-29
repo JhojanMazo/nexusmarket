@@ -8,6 +8,11 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+/**
+ * Row of the {@code order_items} table. Owning side of the {@code orders → order_items}
+ * relationship: the {@code order_id} FK is written from {@link #order}, which must be set
+ * through {@link OrderJpaEntity#addItem(OrderItemJpaEntity)}.
+ */
 @Entity
 @Table(name = "order_items")
 @Getter

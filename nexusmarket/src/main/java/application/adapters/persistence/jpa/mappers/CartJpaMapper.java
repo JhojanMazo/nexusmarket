@@ -12,7 +12,9 @@ import application.adapters.persistence.jpa.entities.ShoppingCartJpaEntity;
 import application.adapters.persistence.jpa.repositories.SpringDataJpaProductRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Currency;
+import java.util.List;
 
 @Component
 public class CartJpaMapper {
@@ -67,5 +69,47 @@ public class CartJpaMapper {
         }
 
         return entity;
+    }
+
+    public ShoppingCartJpaEntity updateEntity(ShoppingCartJpaEntity existing,
+                                              ShoppingCart domain,
+                                              SpringDataJpaProductRepository productJpaRepository) {
+        if (existing == null || domain == null) return existing;
+
+        List<CartItemJpaEntity> unmatchedRows = new ArrayList<>(existing.getItems());
+
+        for (OrderItem item : domain.getItems()) {
+            CartItemJpaEntity matchedRow = null;
+            for (CartItemJpaEntity row : unmatchedRows) {
+                if (row.getProduct() != null && row.getProduct().getProductId().equals(item.product().getProductId())) {
+                    matchedRow = row;
+                    break;
+                }
+            }
+
+            if (matchedRow != null) {
+                unmatchedRows.remove(matchedRow);
+                matchedRow.setQuantity(item.quantity());
+                matchedRow.setUnitPriceAmount(item.unitPrice().amount());
+                matchedRow.setCurrencyCode(item.unitPrice().currency().getCurrencyCode());
+            } else {
+                ProductJpaEntity productEntity = productJpaRepository.findById(item.product().getProductId())
+                        .orElseGet(() -> productJpaMapper.toEntity(item.product()));
+
+                CartItemJpaEntity itemEntity = new CartItemJpaEntity(
+                        productEntity,
+                        item.quantity(),
+                        item.unitPrice().amount(),
+                        item.unitPrice().currency().getCurrencyCode()
+                );
+                existing.addItem(itemEntity);
+            }
+        }
+
+        for (CartItemJpaEntity orphan : unmatchedRows) {
+            existing.removeItem(orphan);
+        }
+
+        return existing;
     }
 }

@@ -2,14 +2,11 @@ package application.domain.services.user;
 
 import application.domain.enums.BuyerCommercialStatus;
 import application.domain.models.Buyer;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 2.2 Manages buyer commercial records and profiles.
  */
-@Service
 public class BuyerManagementService {
 
     public void updateCommercialStatus(Buyer buyer, BuyerCommercialStatus newStatus) {

@@ -45,15 +45,50 @@ public class Buyer extends User {
                                IdentityDocument idDoc,
                                Address primaryAddress,
                                List<Address> additionalAddresses,
+                               BuyerCommercialStatus commercialStatus,
+                               String passwordHash) {
+        Buyer buyer = new Buyer(UUID.randomUUID(), fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus);
+        buyer.setPasswordHash(passwordHash);
+        return buyer;
+    }
+
+    public static Buyer create(String fullName,
+                               Email email,
+                               IdentityDocument idDoc,
+                               Address primaryAddress,
+                               List<Address> additionalAddresses,
                                BuyerCommercialStatus commercialStatus) {
-        return new Buyer(UUID.randomUUID(), fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus);
+        return create(fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus, null);
     }
 
     public static Buyer create(String fullName,
                                Email email,
                                IdentityDocument idDoc,
                                Address primaryAddress) {
-        return create(fullName, email, idDoc, primaryAddress, Collections.emptyList(), BuyerCommercialStatus.ENABLED);
+        return create(fullName, email, idDoc, primaryAddress, Collections.emptyList(), BuyerCommercialStatus.ENABLED, null);
+    }
+
+    public static Buyer create(String fullName,
+                               Email email,
+                               IdentityDocument idDoc,
+                               Address primaryAddress,
+                               String passwordHash) {
+        return create(fullName, email, idDoc, primaryAddress, Collections.emptyList(), BuyerCommercialStatus.ENABLED, passwordHash);
+    }
+
+    public static Buyer reconstitute(UUID userId,
+                                      String fullName,
+                                      Email email,
+                                      IdentityDocument idDoc,
+                                      Address primaryAddress,
+                                      List<Address> additionalAddresses,
+                                      BuyerCommercialStatus commercialStatus,
+                                      UserStatus status,
+                                      String passwordHash) {
+        Buyer buyer = new Buyer(userId, fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus);
+        buyer.setStatus(status);
+        buyer.setPasswordHash(passwordHash);
+        return buyer;
     }
 
     public static Buyer reconstitute(UUID userId,
@@ -64,9 +99,7 @@ public class Buyer extends User {
                                       List<Address> additionalAddresses,
                                       BuyerCommercialStatus commercialStatus,
                                       UserStatus status) {
-        Buyer buyer = new Buyer(userId, fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus);
-        buyer.setStatus(status);
-        return buyer;
+        return reconstitute(userId, fullName, email, idDoc, primaryAddress, additionalAddresses, commercialStatus, status, null);
     }
 
     public Address getPrimaryAddress() {

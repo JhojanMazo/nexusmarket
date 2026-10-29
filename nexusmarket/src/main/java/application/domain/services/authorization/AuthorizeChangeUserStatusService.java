@@ -4,12 +4,8 @@ import application.domain.enums.UserRole;
 import application.domain.enums.UserStatus;
 import application.domain.exceptions.UnauthorizedOperationException;
 import application.domain.models.User;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 import java.util.UUID;
-
-@Service
 public class AuthorizeChangeUserStatusService {
 
     public void validateStatusChange(User actor, UUID targetUserId, UserStatus newStatus) {

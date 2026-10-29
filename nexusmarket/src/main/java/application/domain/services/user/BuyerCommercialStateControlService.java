@@ -3,14 +3,11 @@ package application.domain.services.user;
 import application.domain.enums.BuyerCommercialStatus;
 import application.domain.enums.UserStatus;
 import application.domain.models.Buyer;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 2.5 Evaluates commercial transaction eligibility (FR-003).
  */
-@Service
 public class BuyerCommercialStateControlService {
 
     public boolean canTransact(Buyer buyer) {

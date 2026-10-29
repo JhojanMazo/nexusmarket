@@ -22,7 +22,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class RefundJpaEntity {
+public class RefundJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "refund_id", nullable = false)

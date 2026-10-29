@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -28,11 +29,15 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class InventoryJpaEntity {
+public class InventoryJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "inventory_id", nullable = false)
     private UUID inventoryId;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id", nullable = false)

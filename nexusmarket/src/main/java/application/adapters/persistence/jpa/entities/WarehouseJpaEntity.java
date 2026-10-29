@@ -19,7 +19,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class WarehouseJpaEntity {
+public class WarehouseJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "warehouse_id", nullable = false)

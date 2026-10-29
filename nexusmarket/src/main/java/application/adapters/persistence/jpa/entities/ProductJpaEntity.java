@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -20,11 +21,18 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "products")
-public class ProductJpaEntity {
+public class ProductJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "product_id", nullable = false)
     private UUID productId;
+
+    @Column(name = "seller_id")
+    private UUID sellerId;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @Column(name = "name", nullable = false, length = 150)
     private String name;
@@ -59,6 +67,9 @@ public class ProductJpaEntity {
     public UUID getProductId() { return productId; }
     public void setProductId(UUID productId) { this.productId = productId; }
 
+    public UUID getSellerId() { return sellerId; }
+    public void setSellerId(UUID sellerId) { this.sellerId = sellerId; }
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -82,4 +93,7 @@ public class ProductJpaEntity {
 
     public ProductType getType() { return type; }
     public void setType(ProductType type) { this.type = type; }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test (Java 17)
+    name: Build, Test & Verify (Java 17)
     runs-on: ubuntu-latest
 
     steps:
@@ -22,14 +22,38 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Set up Node.js 20 (Frontend Test Runner & Static Server)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Execute Frontend Automated Test Suite
+        run: cd frontend && npm test
+
       - name: Make Maven Wrapper Executable
         run: chmod +x nexusmarket/mvnw
 
-      - name: Run Test Suite
-        run: cd nexusmarket && ./mvnw clean test
+      - name: Compile Source & Test Code
+        run: ./nexusmarket/mvnw -B -f nexusmarket/pom.xml clean test-compile
 
-      - name: Package JAR
-        run: cd nexusmarket && ./mvnw package -DskipTests
+      - name: Execute Automated Test Suite
+        run: ./nexusmarket/mvnw -B -f nexusmarket/pom.xml test
 
-      - name: Build Docker Image
-        run: docker build -t nexusmarket-backend:latest ./nexusmarket
+      - name: Upload Surefire Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-test-reports
+          path: nexusmarket/target/surefire-reports/
+
+      - name: Package Executable JAR
+        run: ./nexusmarket/mvnw -B -f nexusmarket/pom.xml package -DskipTests
+
+      - name: Upload Packaged JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexusmarket-jar
+          path: nexusmarket/target/nexusmarket-domain-1.0.0.jar
+
+      - name: Verify Docker Image Build
+        run: docker build -t nexusmarket-backend:ci ./nexusmarket

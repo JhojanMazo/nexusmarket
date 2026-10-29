@@ -113,6 +113,24 @@ public class Inventory {
         recordMovement(InventoryMovementType.RETURN, quantity, "Retorno de orden");
     }
 
+    /**
+     * Releases previously reserved stock (e.g., when a PENDING_PAYMENT order expires or is cancelled)
+     * and returns the units to {@code availableQuantity}.
+     */
+    public void releaseReservedStock(int quantity, String reason) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("La cantidad a liberar debe ser mayor a cero");
+        }
+        if (this.reservedQuantity >= quantity) {
+            this.reservedQuantity -= quantity;
+        } else {
+            this.reservedQuantity = 0;
+        }
+        this.availableQuantity += quantity;
+        recordMovement(InventoryMovementType.RETURN, quantity,
+                reason != null ? reason : "Liberación automática por expiración de orden");
+    }
+
     public void adjustStock(int realQuantity, String reason) {
         if (realQuantity < 0) {
             throw new IllegalArgumentException("La cantidad real no puede ser negativa (FR-010)");

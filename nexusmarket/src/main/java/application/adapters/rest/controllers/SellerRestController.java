@@ -1,12 +1,12 @@
 package application.adapters.rest.controllers;
 
 import application.adapters.rest.dtos.requests.CreateSellerRequestDTO;
-import application.adapters.rest.dtos.requests.InventoryMovementRequestDTO;
 import application.adapters.rest.dtos.requests.ProductPriceUpdateRequestDTO;
 import application.adapters.rest.dtos.requests.ProductRequestDTO;
 import application.adapters.rest.dtos.requests.ProductStatusUpdateRequestDTO;
 import application.adapters.rest.dtos.responses.InventoryResponseDTO;
 import application.adapters.rest.dtos.responses.OrderResponseDTO;
+import application.adapters.rest.dtos.responses.PageResponseDTO;
 import application.adapters.rest.dtos.responses.ProductResponseDTO;
 import application.adapters.rest.dtos.responses.SellerResponseDTO;
 import application.adapters.rest.dtos.responses.WarehouseResponseDTO;
@@ -21,6 +21,7 @@ import application.domain.models.Product;
 import application.domain.models.Seller;
 import application.domain.models.Warehouse;
 import application.domain.ports.in.SellerPort;
+import application.domain.valueobjects.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -108,9 +109,18 @@ public class SellerRestController {
     }
 
     @GetMapping("/products")
-    public ResponseEntity<List<ProductResponseDTO>> getAllProducts() {
-        List<Product> products = sellerPort.getAllProducts();
-        return ResponseEntity.ok(productRestMapper.toResponseList(products));
+    public ResponseEntity<PageResponseDTO<ProductResponseDTO>> getAllProducts(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "name") String sortBy,
+            @RequestParam(name = "direction", defaultValue = "ASC") String direction) {
+        PageResult<Product> productsPage;
+        if ("name".equals(sortBy) && "ASC".equalsIgnoreCase(direction)) {
+            productsPage = sellerPort.getAllProducts(page, size);
+        } else {
+            productsPage = sellerPort.getAllProducts(page, size, sortBy, direction);
+        }
+        return ResponseEntity.ok(PageResponseDTO.from(productsPage, ProductRestMapper::toResponse));
     }
 
     @GetMapping("/products/{productId}")
@@ -134,15 +144,23 @@ public class SellerRestController {
     }
 
     @GetMapping("/{sellerId}/orders")
-    public ResponseEntity<List<OrderResponseDTO>> getSellerOrders(@PathVariable("sellerId") UUID sellerId) {
-        List<Order> orders = sellerPort.getSellerOrders(sellerId);
-        return ResponseEntity.ok(orderRestMapper.toResponseList(orders));
+    public ResponseEntity<PageResponseDTO<OrderResponseDTO>> getSellerOrders(
+            @PathVariable("sellerId") UUID sellerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "orderDate") String sortBy,
+            @RequestParam(name = "direction", defaultValue = "DESC") String direction) {
+        PageResult<Order> ordersPage = sellerPort.getSellerOrders(sellerId, page, size, sortBy, direction);
+        return ResponseEntity.ok(PageResponseDTO.from(ordersPage, OrderRestMapper::toResponse));
     }
 
     @GetMapping("/{sellerId}/warehouses")
-    public ResponseEntity<List<WarehouseResponseDTO>> getSellerWarehouses(@PathVariable("sellerId") UUID sellerId) {
+    public ResponseEntity<PageResponseDTO<WarehouseResponseDTO>> getSellerWarehouses(
+            @PathVariable("sellerId") UUID sellerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Warehouse> warehouses = sellerPort.getSellerWarehouses(sellerId);
-        return ResponseEntity.ok(warehouseRestMapper.toResponseList(warehouses));
+        return ResponseEntity.ok(PageResponseDTO.of(warehouseRestMapper.toResponseList(warehouses), page, size));
     }
 
     @PostMapping("/{sellerId}/inventory/initial")
@@ -170,8 +188,11 @@ public class SellerRestController {
     }
 
     @GetMapping("/{sellerId}/inventory")
-    public ResponseEntity<List<InventoryResponseDTO>> getSellerInventory(@PathVariable("sellerId") UUID sellerId) {
+    public ResponseEntity<PageResponseDTO<InventoryResponseDTO>> getSellerInventory(
+            @PathVariable("sellerId") UUID sellerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<Inventory> inventories = sellerPort.getSellerInventory(sellerId);
-        return ResponseEntity.ok(inventoryRestMapper.toResponseList(inventories));
+        return ResponseEntity.ok(PageResponseDTO.of(inventoryRestMapper.toResponseList(inventories), page, size));
     }
 }

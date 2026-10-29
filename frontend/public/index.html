@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexusMarket — Marketplace Empresarial Full Stack</title>
+    <meta
+      name="description"
+      content="Marketplace empresarial multi-actor con catálogo verificado, carrito, checkout, gestión de vendedores, logística y administración."
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <a href="#app-main" class="skip-link">Saltar al contenido principal</a>
+
+    <header class="site-header" role="banner">
+      <div class="header-inner">
+        <a href="#/" class="brand-logo" aria-label="NexusMarket Inicio">
+          <span>NexusMarket</span>
+          <span class="brand-badge">ENTERPRISE</span>
+        </a>
+
+        <nav id="main-nav-links" class="nav-links" aria-label="Navegación principal"></nav>
+
+        <div id="nav-auth-actions" class="nav-auth"></div>
+      </div>
+    </header>
+
+    <main id="app-main" class="main-container" role="main" tabindex="-1">
+      <div class="state-box">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Iniciando aplicación NexusMarket...</p>
+      </div>
+    </main>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+    <div id="modal-overlay" class="modal-overlay hidden"></div>
+
+    <footer class="site-footer" role="contentinfo">
+      <div>
+        <strong>NexusMarket Marketplace</strong> &bull; Arquitectura Hexagonal &amp; DDD &bull;
+        <a href="/swagger-ui.html" target="_blank" rel="noopener">Documentación API OpenAPI 3</a> &bull;
+        <a href="#/about">Políticas y Guía Operativa</a>
+      </div>
+    </footer>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

@@ -3,14 +3,11 @@ package application.domain.services.operation;
 import application.domain.enums.AuditSeverity;
 import application.domain.models.AuditLog;
 import application.domain.models.Operation;
-import org.springframework.stereotype.Service;
-
 import java.util.UUID;
 
 /**
  * Domain service coordinating relational operation persistence and MongoDB audit logging.
  */
-@Service
 public class RegisterOperationAndAuditService {
 
     private final RegisterOperationService registerOperationService;

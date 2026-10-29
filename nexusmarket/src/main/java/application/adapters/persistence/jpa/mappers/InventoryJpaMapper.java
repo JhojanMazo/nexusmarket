@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class InventoryJpaMapper {
@@ -71,5 +74,31 @@ public class InventoryJpaMapper {
         }
 
         return entity;
+    }
+
+    /**
+     * Updates an existing (managed) {@link InventoryJpaEntity} in place so its optimistic
+     * lock {@code version}, audit timestamps ({@code createdAt}, {@code updatedAt}) and
+     * managed associations are preserved.
+     */
+    public InventoryJpaEntity updateEntity(InventoryJpaEntity existing, Inventory domain) {
+        if (existing == null || domain == null) return existing;
+
+        existing.setAvailableQuantity(domain.getAvailableQuantity());
+        existing.setReservedQuantity(domain.getReservedQuantity());
+        existing.setStatus(domain.getStatus());
+
+        if (domain.getMovements() != null) {
+            Set<UUID> existingIds = existing.getMovements().stream()
+                    .map(InventoryMovementJpaEntity::getMovementId)
+                    .collect(Collectors.toSet());
+            for (InventoryMovement movement : domain.getMovements()) {
+                if (!existingIds.contains(movement.movementId())) {
+                    existing.getMovements().add(inventoryMovementJpaMapper.toEntity(movement, existing));
+                }
+            }
+        }
+
+        return existing;
     }
 }

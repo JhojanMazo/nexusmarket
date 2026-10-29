@@ -35,7 +35,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public abstract class UserEntity {
+public abstract class UserEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "user_id", nullable = false, updatable = false)
@@ -59,4 +59,11 @@ public abstract class UserEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private UserStatus status;
+
+    @Column(name = "password_hash", nullable = true, length = 255)
+    private String passwordHash;
+
+    public UserEntity(UUID userId, String fullName, Email email, IdentityDocument identityDocument, UserRole role, UserStatus status) {
+        this(userId, fullName, email, identityDocument, role, status, null);
+    }
 }

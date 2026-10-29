@@ -10,8 +10,6 @@ import application.domain.models.ReturnRequest;
 import application.domain.models.Shipment;
 import application.domain.models.User;
 import application.domain.models.Warehouse;
-import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
@@ -21,7 +19,6 @@ import java.util.stream.Collectors;
 /**
  * 6.5 Aggregates platform operational telemetry for reporting (OBJ-12).
  */
-@Service
 public class AdministrativeReportsConsolidationService {
 
     public String generatePlatformReport(List<Order> orders, List<Product> products, List<User> users) {

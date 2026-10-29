@@ -1,9 +1,6 @@
 package application.domain.services.authorization;
 
 import application.domain.exceptions.UnauthorizedOperationException;
-import org.springframework.stereotype.Service;
-
-@Service
 public class AuthorizeCustomerRegistrationService {
 
     public void validateRegistrationAllowed(String email) {

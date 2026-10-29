@@ -2,15 +2,12 @@ package application.domain.services.inventory;
 
 import application.domain.enums.InventoryStatus;
 import application.domain.models.Inventory;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 4.4 Temporarily locks stock during checkout workflows and commits outbound exits (FR-010, FR-011, FR-012, FR-013).
  * Absolute business rule: Under no circumstances are negative stock balances permitted, nor operations on DAMAGED lots.
  */
-@Service
 public class InventoryReservationService {
 
     public void reserve(Inventory inventory, int quantity) {
@@ -39,5 +36,16 @@ public class InventoryReservationService {
             throw new IllegalStateException("Bajo ninguna circunstancia se permitirán existencias negativas en salida de inventario (FR-010)");
         }
         inventory.confirmSaleOutbound(quantity);
+    }
+
+    /**
+     * Releases stock back to available inventory when an unpaid order expires or is cancelled.
+     */
+    public void releaseReservation(Inventory inventory, int quantity) {
+        Objects.requireNonNull(inventory, "Inventory must not be null");
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("La cantidad a liberar debe ser mayor a cero");
+        }
+        inventory.releaseReservedStock(quantity, "Liberación automática por orden cancelada/expirada");
     }
 }

@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class InvoiceJpaEntity {
+public class InvoiceJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "invoice_id", nullable = false)

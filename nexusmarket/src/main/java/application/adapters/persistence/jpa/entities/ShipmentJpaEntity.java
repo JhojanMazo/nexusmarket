@@ -22,7 +22,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ShipmentJpaEntity {
+public class ShipmentJpaEntity extends AuditableJpaEntity {
 
     @Id
     @Column(name = "shipment_id", nullable = false)

@@ -6,6 +6,8 @@ import application.domain.enums.OrderStatus;
 import application.domain.enums.ProductStatus;
 import application.domain.enums.ProductType;
 import application.domain.enums.WarehouseType;
+import application.domain.events.OrderPaidEvent;
+import application.domain.events.OrderPlacedEvent;
 import application.domain.exceptions.UnauthorizedOperationException;
 import application.domain.models.Buyer;
 import application.domain.models.Inventory;
@@ -13,6 +15,7 @@ import application.domain.models.Order;
 import application.domain.models.Product;
 import application.domain.models.ShoppingCart;
 import application.domain.models.Warehouse;
+import application.domain.ports.out.EventPublisherPort;
 import application.domain.ports.out.InventoryRepositoryPort;
 import application.domain.ports.out.OrderRepositoryPort;
 import application.domain.ports.out.ProductRepositoryPort;
@@ -48,6 +51,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +73,8 @@ class BuyerUseCaseImplTest {
     private ReturnRequestRepositoryPort returnRequestRepository;
     @Mock
     private UniqueIdentityValidationService uniqueIdentityValidationService;
+    @Mock
+    private EventPublisherPort eventPublisherPort;
 
     private BuyerUseCaseImpl buyerUseCase;
 
@@ -94,7 +100,8 @@ class BuyerUseCaseImplTest {
                 new ProductTypeDifferentiationService(),
                 new ValidateBuyerOwnershipService(),
                 new PrimaryAddressManagementService(),
-                new SecondaryAddressManagementService()
+                new SecondaryAddressManagementService(),
+                eventPublisherPort
         );
         address = new Address("Cra 1", "Bogota", "DC", "Colombia", "1101", null);
         buyer = Buyer.create("Buyer Test", new Email("buyer@test.com"), new IdentityDocument("CC", "1234"), address);
@@ -137,6 +144,7 @@ class BuyerUseCaseImplTest {
         Order order = buyerUseCase.createOrderFromCart(cartId, address);
         assertNotNull(order);
         verify(cartRepository).deleteById(cartId);
+        verify(eventPublisherPort).publish(any(OrderPlacedEvent.class));
     }
 
     @Test
@@ -159,6 +167,7 @@ class BuyerUseCaseImplTest {
         assertEquals(OrderStatus.PAID, paidOrder.getStatus());
         assertEquals(4, inv.getAvailableQuantity());
         assertEquals(1, inv.getReservedQuantity());
+        verify(eventPublisherPort).publish(any(OrderPaidEvent.class));
     }
 
     @Test
@@ -193,6 +202,39 @@ class BuyerUseCaseImplTest {
 
         assertThrows(IllegalStateException.class,
                 () -> buyerUseCase.processPayment(order.getOrderId(), BigDecimal.valueOf(3000), "CREDIT_CARD"));
+    }
+
+    @Test
+    void processPayment_AlreadyPaid_ThrowsIllegalStateException() {
+        ShoppingCart cart = new ShoppingCart(cartId, buyer);
+        Product product = new Product(productId, "Laptop", new ProductVariant("RAM", "16GB"),
+                new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD")), ProductStatus.PUBLISHED, ProductType.PHYSICAL);
+        cart.addItem(new OrderItem(product, 1, new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD"))));
+        Order order = Order.createFromCart(cart, address);
+        order.advanceTo(OrderStatus.PENDING_PAYMENT);
+        order.advanceTo(OrderStatus.PAID);
+
+        when(orderRepository.findById(order.getOrderId())).thenReturn(Optional.of(order));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> buyerUseCase.processPayment(order.getOrderId(), BigDecimal.valueOf(1000), "CREDIT_CARD"));
+        assertTrue(ex.getMessage().contains("ya se encuentra pagada"));
+    }
+
+    @Test
+    void processPayment_CancelledOrder_ThrowsIllegalStateException() {
+        ShoppingCart cart = new ShoppingCart(cartId, buyer);
+        Product product = new Product(productId, "Laptop", new ProductVariant("RAM", "16GB"),
+                new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD")), ProductStatus.PUBLISHED, ProductType.PHYSICAL);
+        cart.addItem(new OrderItem(product, 1, new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD"))));
+        Order order = Order.createFromCart(cart, address);
+        order.cancel();
+
+        when(orderRepository.findById(order.getOrderId())).thenReturn(Optional.of(order));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> buyerUseCase.processPayment(order.getOrderId(), BigDecimal.valueOf(1000), "CREDIT_CARD"));
+        assertTrue(ex.getMessage().contains("cancelada"));
     }
 
     @Test

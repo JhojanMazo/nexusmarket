@@ -2,14 +2,11 @@ package application.domain.services.user;
 
 import application.domain.models.User;
 import application.domain.valueobjects.Email;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 1.1 Handles profile management and coordinate user profile updates.
  */
-@Service
 public class UserInformationManagementService {
 
     public User updateUserInfo(User user, String newFullName, Email newEmail) {

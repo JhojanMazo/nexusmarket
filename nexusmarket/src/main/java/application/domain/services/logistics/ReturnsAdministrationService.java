@@ -3,14 +3,11 @@ package application.domain.services.logistics;
 import application.domain.enums.OrderStatus;
 import application.domain.models.Order;
 import application.domain.models.ReturnRequest;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 6.3 Manages reverse logistics workflows (FR-023, FR-024, FR-025).
  */
-@Service
 public class ReturnsAdministrationService {
 
     public ReturnRequest initiateReturn(Order order) {

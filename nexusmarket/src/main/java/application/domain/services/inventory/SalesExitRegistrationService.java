@@ -2,14 +2,11 @@ package application.domain.services.inventory;
 
 import application.domain.enums.InventoryStatus;
 import application.domain.models.Inventory;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 4.5 Commits stock reductions upon confirmed purchases (FR-010, FR-011).
  */
-@Service
 public class SalesExitRegistrationService {
 
     public void registerExit(Inventory inventory, int quantity) {

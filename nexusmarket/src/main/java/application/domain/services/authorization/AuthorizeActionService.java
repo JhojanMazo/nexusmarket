@@ -3,14 +3,11 @@ package application.domain.services.authorization;
 import application.domain.enums.UserRole;
 import application.domain.exceptions.UnauthorizedOperationException;
 import application.domain.ports.out.AuthorizationPort;
-import org.springframework.stereotype.Service;
-
 import java.util.UUID;
 
 /**
  * Domain service providing granular action authorization checks for operations.
  */
-@Service
 public class AuthorizeActionService {
 
     private final AuthorizationPort authorizationPort;

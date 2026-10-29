@@ -16,15 +16,17 @@ import java.util.UUID;
  */
 public class Product {
     private final UUID productId;
+    private final UUID sellerId;
     private final String name;
     private final ProductVariant variant;
     private final Money price;
     private final ProductStatus status;
     private final ProductType type;
 
-    public Product(UUID productId, String name, ProductVariant variant, Money price,
+    public Product(UUID productId, UUID sellerId, String name, ProductVariant variant, Money price,
                    ProductStatus status, ProductType type) {
         this.productId = Objects.requireNonNull(productId);
+        this.sellerId = sellerId;
         this.name = Objects.requireNonNull(name);
         this.variant = Objects.requireNonNull(variant);
         this.price = Objects.requireNonNull(price);
@@ -32,7 +34,13 @@ public class Product {
         this.type = Objects.requireNonNull(type);
     }
 
+    public Product(UUID productId, String name, ProductVariant variant, Money price,
+                   ProductStatus status, ProductType type) {
+        this(productId, null, name, variant, price, status, type);
+    }
+
     public UUID getProductId() { return productId; }
+    public UUID getSellerId() { return sellerId; }
     public String getName() { return name; }
     public ProductVariant getVariant() { return variant; }
     public Money getPrice() { return price; }
@@ -48,10 +56,10 @@ public class Product {
     }
 
     public Product withStatus(ProductStatus newStatus) {
-        return new Product(this.productId, this.name, this.variant, this.price, Objects.requireNonNull(newStatus), this.type);
+        return new Product(this.productId, this.sellerId, this.name, this.variant, this.price, Objects.requireNonNull(newStatus), this.type);
     }
 
     public Product withPrice(Money newPrice) {
-        return new Product(this.productId, this.name, this.variant, Objects.requireNonNull(newPrice), this.status, this.type);
+        return new Product(this.productId, this.sellerId, this.name, this.variant, Objects.requireNonNull(newPrice), this.status, this.type);
     }
 }

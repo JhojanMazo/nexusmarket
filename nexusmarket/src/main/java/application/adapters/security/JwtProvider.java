@@ -19,13 +19,21 @@ import java.util.UUID;
 public class JwtProvider implements JwtServicePort {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final int MIN_SECRET_KEY_BYTES = 32;
     private final byte[] secretKeyBytes;
     private final long expirationSeconds;
 
     public JwtProvider(
-            @Value("${security.jwt.secret:NexusMarketSuperSecretKeyForJwtSigning2026EnterpriseSecurity}") String secret,
+            @Value("${security.jwt.secret:NexusMarketDevOnlyJwtSecretKey2026LocalDevelopment32Bytes}") String secret,
             @Value("${security.jwt.expiration-seconds:86400}") long expirationSeconds) {
-        this.secretKeyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT secret key (SECURITY_JWT_SECRET / security.jwt.secret) must not be blank");
+        }
+        byte[] keyBytes = secret.trim().getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < MIN_SECRET_KEY_BYTES) {
+            throw new IllegalStateException("JWT secret key must be at least 32 bytes (256 bits) for HMAC-SHA256");
+        }
+        this.secretKeyBytes = keyBytes;
         this.expirationSeconds = expirationSeconds;
     }
 

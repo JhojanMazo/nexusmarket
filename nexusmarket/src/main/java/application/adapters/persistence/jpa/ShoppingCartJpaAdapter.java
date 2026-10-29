@@ -30,7 +30,9 @@ public class ShoppingCartJpaAdapter implements ShoppingCartRepositoryPort {
 
     @Override
     public ShoppingCart save(ShoppingCart cart) {
-        ShoppingCartJpaEntity entity = mapper.toEntity(cart, productJpaRepository);
+        ShoppingCartJpaEntity entity = jpaRepository.findById(cart.getCartId())
+                .map(existing -> mapper.updateEntity(existing, cart, productJpaRepository))
+                .orElseGet(() -> mapper.toEntity(cart, productJpaRepository));
         ShoppingCartJpaEntity saved = jpaRepository.save(entity);
         return mapper.toDomain(saved);
     }

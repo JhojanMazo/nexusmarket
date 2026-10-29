@@ -1,14 +1,11 @@
 package application.domain.services.inventory;
 
 import application.domain.models.Inventory;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 5.1 Handles physical stock reconciliations and return integrations (FR-014).
  */
-@Service
 public class InventoryAdjustmentsReturnsService {
 
     public void processReturn(Inventory inventory, int quantity) {

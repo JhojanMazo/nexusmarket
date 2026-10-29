@@ -6,6 +6,7 @@ import application.domain.valueobjects.Address;
 import application.domain.valueobjects.Money;
 import application.domain.valueobjects.OrderItem;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +19,7 @@ import java.util.UUID;
  * - Created from a {@link ShoppingCart}; items are copied so later cart changes do not affect the order.
  * - Subtotal and total are calculated from the immutable list of {@link OrderItem}s.
  * - Status transitions must follow the exact sequence defined in the spec:
- *   CART → PENDING_PAYMENT → PAID → SHIPPED → DELIVERED_COMPLETED.
+ *   CART → PENDING_PAYMENT → PAID → SHIPPED → DELIVERED_COMPLETED (or CANCELLED from CART/PENDING_PAYMENT).
  *   Invalid transitions throw {@link IllegalStateException}.
  */
 public class Order {
@@ -28,14 +29,23 @@ public class Order {
     private Address deliveryAddress; // may be changed until order is finalized
     private OrderStatus status;
     private final LocalDate creationDate;
+    private final LocalDateTime createdAt;
 
-    private Order(UUID orderId, Buyer buyer, List<OrderItem> items, Address deliveryAddress, OrderStatus status, LocalDate creationDate) {
+    private Order(UUID orderId, Buyer buyer, List<OrderItem> items, Address deliveryAddress,
+                  OrderStatus status, LocalDate creationDate, LocalDateTime createdAt) {
         this.orderId = Objects.requireNonNull(orderId);
         this.buyer = Objects.requireNonNull(buyer);
         this.items = Collections.unmodifiableList(new ArrayList<>(items));
         this.deliveryAddress = Objects.requireNonNull(deliveryAddress);
         this.status = Objects.requireNonNull(status);
         this.creationDate = Objects.requireNonNull(creationDate);
+        this.createdAt = createdAt != null ? createdAt : defaultCreatedAt(creationDate);
+    }
+
+    private static LocalDateTime defaultCreatedAt(LocalDate creationDate) {
+        return creationDate.isBefore(LocalDate.now())
+                ? creationDate.atStartOfDay()
+                : LocalDateTime.now();
     }
 
     /** Factory method to create an Order from a ShoppingCart. */
@@ -44,12 +54,21 @@ public class Order {
         if (cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cannot create an Order from an empty ShoppingCart");
         }
-        return new Order(UUID.randomUUID(), cart.getBuyer(), cart.getItems(), deliveryAddress, OrderStatus.CART, LocalDate.now());
+        LocalDate today = LocalDate.now();
+        return new Order(UUID.randomUUID(), cart.getBuyer(), cart.getItems(), deliveryAddress,
+                OrderStatus.CART, today, LocalDateTime.now());
     }
 
     /** Reconstitution method for persistence mapping. */
-    public static Order reconstitute(UUID orderId, Buyer buyer, List<OrderItem> items, Address deliveryAddress, OrderStatus status, LocalDate creationDate) {
-        return new Order(orderId, buyer, items, deliveryAddress, status, creationDate);
+    public static Order reconstitute(UUID orderId, Buyer buyer, List<OrderItem> items, Address deliveryAddress,
+                                     OrderStatus status, LocalDate creationDate) {
+        return new Order(orderId, buyer, items, deliveryAddress, status, creationDate, null);
+    }
+
+    /** Reconstitution method preserving the exact creation timestamp for TTL expiration checks. */
+    public static Order reconstitute(UUID orderId, Buyer buyer, List<OrderItem> items, Address deliveryAddress,
+                                     OrderStatus status, LocalDate creationDate, LocalDateTime createdAt) {
+        return new Order(orderId, buyer, items, deliveryAddress, status, creationDate, createdAt);
     }
 
     public UUID getOrderId() { return orderId; }
@@ -59,6 +78,7 @@ public class Order {
     public void setDeliveryAddress(Address address) { this.deliveryAddress = Objects.requireNonNull(address); }
     public OrderStatus getStatus() { return status; }
     public LocalDate getCreationDate() { return creationDate; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 
     /** Calculates the subtotal (sum of item subtotals). */
     public Money subtotal() {
@@ -97,13 +117,18 @@ public class Order {
         this.status = next;
     }
 
+    /** Cancels an unpaid order (valid from CART or PENDING_PAYMENT). */
+    public void cancel() {
+        advanceTo(OrderStatus.CANCELLED);
+    }
+
     private boolean isValidTransition(OrderStatus current, OrderStatus next) {
         switch (current) {
-            case CART: return next == OrderStatus.PENDING_PAYMENT;
-            case PENDING_PAYMENT: return next == OrderStatus.PAID;
+            case CART: return next == OrderStatus.PENDING_PAYMENT || next == OrderStatus.CANCELLED;
+            case PENDING_PAYMENT: return next == OrderStatus.PAID || next == OrderStatus.CANCELLED;
             case PAID: return next == OrderStatus.SHIPPED || (next == OrderStatus.DELIVERED_COMPLETED && isDigitalOnly());
             case SHIPPED: return next == OrderStatus.DELIVERED_COMPLETED;
-            default: return false; // DELIVERED_COMPLETED has no further transitions
+            default: return false; // DELIVERED_COMPLETED and CANCELLED have no further transitions
         }
     }
 }

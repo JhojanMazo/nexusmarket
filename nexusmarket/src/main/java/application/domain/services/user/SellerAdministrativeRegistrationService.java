@@ -5,15 +5,12 @@ import application.domain.models.Seller;
 import application.domain.models.User;
 import application.domain.valueobjects.Email;
 import application.domain.valueobjects.IdentityDocument;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDate;
 import java.util.Objects;
 
 /**
  * 2.1 Manages administrative onboarding of Marketplace Sellers.
  */
-@Service
 public class SellerAdministrativeRegistrationService {
 
     public Seller registerSeller(User admin, String fullName, Email email, IdentityDocument idDoc, LocalDate onboardingDate) {

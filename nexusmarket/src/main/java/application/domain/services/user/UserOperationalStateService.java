@@ -2,14 +2,11 @@ package application.domain.services.user;
 
 import application.domain.enums.UserStatus;
 import application.domain.models.User;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 1.4 Controls user account operational state lifecycle.
  */
-@Service
 public class UserOperationalStateService {
 
     public void blockUser(User user, String reason) {

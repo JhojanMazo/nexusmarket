@@ -2,14 +2,11 @@ package application.domain.services.authorization;
 
 import application.domain.enums.UserRole;
 import application.domain.models.User;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 1.3 Enforces role permissions and privileges.
  */
-@Service
 public class RolePermissionManagementService {
 
     public void validateActionPermission(User user, UserRole requiredRole) {

@@ -2,14 +2,11 @@ package application.domain.services.product;
 
 import application.domain.enums.ProductStatus;
 import application.domain.models.Product;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 4.1 Controls product catalog visibility state transitions.
  */
-@Service
 public class ProductStateControlService {
 
     public Product publishProduct(Product product) {

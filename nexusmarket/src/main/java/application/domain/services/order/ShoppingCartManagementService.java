@@ -5,14 +5,11 @@ import application.domain.models.Product;
 import application.domain.models.ShoppingCart;
 import application.domain.valueobjects.Money;
 import application.domain.valueobjects.OrderItem;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 5.3 Manages pre-checkout buyer carts.
  */
-@Service
 public class ShoppingCartManagementService {
 
     public void addItem(ShoppingCart cart, Product product, int quantity, Money unitPrice) {

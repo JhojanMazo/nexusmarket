@@ -9,8 +9,11 @@ import application.domain.exceptions.UnauthorizedOperationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,6 +21,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final int UNPROCESSABLE_ENTITY_STATUS = 422;
+    private static final String UNPROCESSABLE_ENTITY_REASON = "Unprocessable Entity";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponseDTO> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
@@ -55,8 +60,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ApiErrorResponseDTO> handleBadRequest(IllegalArgumentException ex, HttpServletRequest request) {
+    @ExceptionHandler({IllegalArgumentException.class, MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+    public ResponseEntity<ApiErrorResponseDTO> handleBadRequest(Exception ex, HttpServletRequest request) {
         log.warn("Bad request: {}", ex.getMessage());
         ApiErrorResponseDTO body = ApiErrorResponseDTO.of(
                 HttpStatus.BAD_REQUEST.value(),
@@ -79,16 +84,29 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiErrorResponseDTO> handleOptimisticLockingFailure(
+            OptimisticLockingFailureException ex, HttpServletRequest request) {
+        log.warn("Optimistic locking conflict on {}: {}", request.getRequestURI(), ex.getMessage());
+        ApiErrorResponseDTO body = ApiErrorResponseDTO.of(
+                HttpStatus.CONFLICT.value(),
+                HttpStatus.CONFLICT.getReasonPhrase(),
+                "El recurso fue modificado concurrentemente por otro usuario. Por favor, recargue e intente nuevamente.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(BusinessRuleException.class)
     public ResponseEntity<ApiErrorResponseDTO> handleBusinessRule(BusinessRuleException ex, HttpServletRequest request) {
         log.warn("Business rule violation: {}", ex.getMessage());
         ApiErrorResponseDTO body = ApiErrorResponseDTO.of(
-                HttpStatus.UNPROCESSABLE_ENTITY.value(),
-                HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase(),
+                UNPROCESSABLE_ENTITY_STATUS,
+                UNPROCESSABLE_ENTITY_REASON,
                 ex.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+        return ResponseEntity.status(UNPROCESSABLE_ENTITY_STATUS).body(body);
     }
 
     @ExceptionHandler(DomainException.class)

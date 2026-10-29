@@ -8,8 +8,9 @@ target/
 *.tar.gz
 *.rar
 
-# Maven Wrapper runtime
-.mvn/wrapper/maven-wrapper.jar
+# Allow Maven Wrapper files in version control
+!.mvn/wrapper/**
+!nexusmarket/.mvn/wrapper/**
 
 # Logs and diagnostics
 *.log
@@ -30,6 +31,12 @@ Thumbs.db
 *.bak
 nexusmarket_backup/
 
-# Environment files
+# Node.js
+node_modules/
+package-lock.json
+
+# Environment files (keep template .env.example versioned)
 .env
 .env.*
+!.env.example
+!nexusmarket/.env.example

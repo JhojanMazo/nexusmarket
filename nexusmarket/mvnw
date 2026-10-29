@@ -1,33 +1,120 @@
 #!/bin/sh
 # ----------------------------------------------------------------------------
-# Maven Wrapper Executable for Unix
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# ----------------------------------------------------------------------------
+# Apache Maven Wrapper Startup Script (only-script distribution)
 # ----------------------------------------------------------------------------
 
 set -e
 
-# Resolve directory of this script
+# Resolve base directory containing .mvn/wrapper/maven-wrapper.properties
 PRG="$0"
 while [ -h "$PRG" ]; do
-  ls=`ls -ld "$PRG"`
-  link=`expr "$ls" : '.*-> \(.*\)$'`
+  ls=$(ls -ld "$PRG")
+  link=$(expr "$ls" : '.*-> \(.*\)$')
   if expr "$link" : '/.*' > /dev/null; then
     PRG="$link"
   else
-    PRG=`dirname "$PRG"`/"$link"
+    PRG="$(dirname "$PRG")/$link"
   fi
 done
-BASE_DIR=`dirname "$PRG"`
+MAVEN_PROJECTBASEDIR="${MAVEN_BASEDIR:-$(cd "$(dirname "$PRG")" && pwd)}"
+export MAVEN_PROJECTBASEDIR
 
-# If local mvn is installed, use it directly for fast local execution
+WRAPPER_PROPS="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.properties"
+if [ ! -f "$WRAPPER_PROPS" ]; then
+  echo "Error: Cannot find $WRAPPER_PROPS" >&2
+  exit 1
+fi
+
+distributionUrl=""
+while IFS="=" read -r key value; do
+  case "$key" in
+    distributionUrl) distributionUrl=$(echo "$value" | tr -d '\r') ;;
+  esac
+done < "$WRAPPER_PROPS"
+
+if [ -z "$distributionUrl" ]; then
+  echo "Error: distributionUrl is not defined in $WRAPPER_PROPS" >&2
+  exit 1
+fi
+
+distributionUrlName="${distributionUrl##*/}"
+distributionUrlNameMain="${distributionUrlName%.*}"
+distributionUrlNameMain="${distributionUrlNameMain%-bin}"
+
+MAVEN_USER_HOME="${MAVEN_USER_HOME:-$HOME/.m2}"
+DIST_DIR="$MAVEN_USER_HOME/wrapper/dists/$distributionUrlNameMain"
+MAVEN_HOME_PARENT="$DIST_DIR/installed"
+MAVEN_BIN="$MAVEN_HOME_PARENT/$distributionUrlNameMain/bin/mvn"
+
+# 1. If the wrapper distribution is already cached locally, execute it directly
+if [ -x "$MAVEN_BIN" ]; then
+  exec "$MAVEN_BIN" "$@"
+fi
+
+# 2. If a wrapper JAR is present and requested, or if we can download the distribution
+WRAPPER_JAR="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.jar"
+if [ -r "$WRAPPER_JAR" ] && [ "${MVNW_TYPE:-only-script}" = "jar" ]; then
+  exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" \
+    "-Dmaven.multiModuleProjectDirectory=$MAVEN_PROJECTBASEDIR" \
+    -jar "$WRAPPER_JAR" "$@"
+fi
+
+# 3. Attempt to download and unpack Maven distribution from distributionUrl
+mkdir -p "$MAVEN_HOME_PARENT" 2>/dev/null || true
+TMP_ZIP="$MAVEN_HOME_PARENT/$distributionUrlName"
+
+download_dist() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL --connect-timeout 5 -o "$TMP_ZIP" "$distributionUrl"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --timeout=5 -O "$TMP_ZIP" "$distributionUrl"
+  else
+    return 1
+  fi
+}
+
+extract_dist() {
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "$TMP_ZIP" -d "$MAVEN_HOME_PARENT"
+  elif command -v jar >/dev/null 2>&1; then
+    (cd "$MAVEN_HOME_PARENT" && jar xf "$TMP_ZIP")
+  else
+    return 1
+  fi
+}
+
+if [ "${MVNW_OFFLINE:-false}" != "true" ] && download_dist 2>/dev/null; then
+  if extract_dist; then
+    rm -f "$TMP_ZIP"
+    chmod +x "$MAVEN_BIN" 2>/dev/null || true
+    if [ -x "$MAVEN_BIN" ]; then
+      exec "$MAVEN_BIN" "$@"
+    fi
+  fi
+  rm -f "$TMP_ZIP"
+fi
+
+# 4. Fallback to system Maven installation when running in air-gapped / offline environments
 if command -v mvn >/dev/null 2>&1; then
   exec mvn "$@"
 fi
 
-# Fallback wrapper execution
-WRAPPER_JAR="$BASE_DIR/.mvn/wrapper/maven-wrapper.jar"
-if [ -r "$WRAPPER_JAR" ]; then
-  exec java -jar "$WRAPPER_JAR" "$@"
-else
-  echo "Error: Maven is not installed on PATH and wrapper jar was not found." >&2
-  exit 1
-fi
+echo "Error: Could not download Maven from $distributionUrl and no local 'mvn' installation was found on PATH." >&2
+exit 1

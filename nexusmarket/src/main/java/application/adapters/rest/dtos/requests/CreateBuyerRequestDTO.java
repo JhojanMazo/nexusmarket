@@ -6,6 +6,10 @@ public record CreateBuyerRequestDTO(
         String email,
         String documentType,
         String documentNumber,
-        AddressDTO primaryAddress
+        AddressDTO primaryAddress,
+        String password
 ) {
+    public CreateBuyerRequestDTO(String fullName, String email, String documentType, String documentNumber, AddressDTO primaryAddress) {
+        this(fullName, email, documentType, documentNumber, primaryAddress, null);
+    }
 }

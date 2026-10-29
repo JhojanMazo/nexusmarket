@@ -95,6 +95,28 @@ class OrderTest {
     }
 
     @Test
+    void itemsCannotBeModifiedThroughTheExposedList() {
+        cart.addItem(item1);
+        Order order = Order.createFromCart(cart, deliveryAddress);
+        assertThrows(UnsupportedOperationException.class, () -> order.getItems().add(item2));
+        assertThrows(UnsupportedOperationException.class, () -> order.getItems().clear());
+    }
+
+    @Test
+    void reconstitutePreservesItemsAndTotals() {
+        cart.addItem(item1); // 2 * 20 = 40
+        cart.addItem(item2); // 1 * 30 = 30
+        Order original = Order.createFromCart(cart, deliveryAddress);
+
+        Order reconstituted = Order.reconstitute(original.getOrderId(), original.getBuyer(),
+                original.getItems(), original.getDeliveryAddress(), original.getStatus(), original.getCreationDate());
+
+        assertEquals(original.getItems(), reconstituted.getItems());
+        assertEquals(original.subtotal(), reconstituted.subtotal());
+        assertEquals(BigDecimal.valueOf(70), reconstituted.total().amount());
+    }
+
+    @Test
     void digitalOrderCanTransitionDirectlyFromPaidToDeliveredCompleted() {
         Product digitalProduct = new Product(java.util.UUID.randomUUID(), "E-Book", new ProductVariant("Format", "PDF"),
                 new Money(BigDecimal.valueOf(15), Currency.getInstance("USD")),

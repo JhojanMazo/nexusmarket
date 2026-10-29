@@ -2,14 +2,11 @@ package application.domain.services.product;
 
 import application.domain.models.Product;
 import application.domain.valueobjects.ProductVariant;
-import org.springframework.stereotype.Service;
-
 import java.util.Objects;
 
 /**
  * 3.5 Manages product SKUs/variants.
  */
-@Service
 public class ProductVariantManagementService {
 
     public Product updateVariant(Product product, ProductVariant newVariant) {

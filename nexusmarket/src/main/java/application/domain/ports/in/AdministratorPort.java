@@ -8,12 +8,15 @@ import application.domain.models.AdministrativeReport;
 import application.domain.models.Buyer;
 import application.domain.models.Invoice;
 import application.domain.models.Operation;
+import application.domain.models.Order;
+import application.domain.models.Product;
 import application.domain.models.Refund;
 import application.domain.models.ReturnRequest;
 import application.domain.models.Seller;
 import application.domain.models.User;
 import application.domain.models.Warehouse;
 import application.domain.valueobjects.Address;
+import application.domain.valueobjects.PageResult;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -28,6 +31,9 @@ public interface AdministratorPort {
     User updateUserStatus(UUID userId, UserStatus newStatus);
     User getUserById(UUID userId);
     List<User> listAllUsers();
+    default PageResult<User> listAllUsers(int page, int size) {
+        return PageResult.of(listAllUsers(), page, size);
+    }
 
     Buyer updateBuyerCommercialStatus(UUID buyerId, BuyerCommercialStatus status);
 
@@ -43,6 +49,13 @@ public interface AdministratorPort {
     Refund processRefund(UUID returnRequestId, BigDecimal amount, String currencyCode);
     List<ReturnRequest> listAllReturns();
     List<Refund> listAllRefunds();
+
+    default PageResult<Order> listAllOrders(int page, int size, String sortBy, String direction) {
+        return PageResult.of(List.of(), page, size);
+    }
+    default PageResult<Product> listAllProducts(int page, int size, String sortBy, String direction) {
+        return PageResult.of(List.of(), page, size);
+    }
 
     AdministrativeReport getAdministrativeReport();
 

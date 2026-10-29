@@ -3,14 +3,11 @@ package application.domain.services.operation;
 import application.domain.enums.AuditSeverity;
 import application.domain.models.AuditLog;
 import application.domain.ports.out.AuditLogRepositoryPort;
-import org.springframework.stereotype.Service;
-
 import java.util.UUID;
 
 /**
  * Domain service to record enterprise audit logs into MongoDB.
  */
-@Service
 public class RegisterAuditLogService {
 
     private final AuditLogRepositoryPort auditLogRepositoryPort;

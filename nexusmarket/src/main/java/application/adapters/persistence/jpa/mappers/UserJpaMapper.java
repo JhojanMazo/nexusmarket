@@ -17,11 +17,12 @@ public class UserJpaMapper {
     public User toDomain(UserEntity entity) {
         if (entity == null) return null;
 
+        User domainUser;
         if (entity instanceof BuyerEntity buyerEntity) {
             List<Address> additional = buyerEntity.getSecondaryAddresses() != null
                     ? buyerEntity.getSecondaryAddresses().stream().map(AddressEmbeddable::toDomain).toList()
                     : Collections.emptyList();
-            return Buyer.reconstitute(
+            domainUser = Buyer.reconstitute(
                     buyerEntity.getUserId(),
                     buyerEntity.getFullName(),
                     buyerEntity.getEmail(),
@@ -32,16 +33,19 @@ public class UserJpaMapper {
                     buyerEntity.getStatus()
             );
         } else if (entity instanceof SellerEntity sellerEntity) {
-            return Seller.reconstitute(
+            java.time.LocalDate onboardingDate = sellerEntity.getOnboardingDate() != null
+                    ? sellerEntity.getOnboardingDate()
+                    : (sellerEntity.getCreatedAt() != null ? sellerEntity.getCreatedAt().toLocalDate() : java.time.LocalDate.now());
+            domainUser = Seller.reconstitute(
                     sellerEntity.getUserId(),
                     sellerEntity.getFullName(),
                     sellerEntity.getEmail(),
                     sellerEntity.getIdentityDocument(),
-                    sellerEntity.getOnboardingDate(),
+                    onboardingDate,
                     sellerEntity.getStatus()
             );
         } else {
-            return User.reconstituteStaff(
+            domainUser = User.reconstituteStaff(
                     entity.getUserId(),
                     entity.getFullName(),
                     entity.getEmail(),
@@ -50,16 +54,19 @@ public class UserJpaMapper {
                     entity.getStatus()
             );
         }
+        domainUser.setPasswordHash(entity.getPasswordHash());
+        return domainUser;
     }
 
     public UserEntity toEntity(User domain) {
         if (domain == null) return null;
 
+        UserEntity entity;
         if (domain instanceof Buyer buyer) {
             List<AddressEmbeddable> secondary = buyer.getAdditionalAddresses() != null
                     ? buyer.getAdditionalAddresses().stream().map(AddressEmbeddable::fromDomain).toList()
                     : Collections.emptyList();
-            return new BuyerEntity(
+            entity = new BuyerEntity(
                     buyer.getUserId(),
                     buyer.getFullName(),
                     buyer.getEmail(),
@@ -70,7 +77,7 @@ public class UserJpaMapper {
                     buyer.getCommercialStatus()
             );
         } else if (domain instanceof Seller seller) {
-            return new SellerEntity(
+            entity = new SellerEntity(
                     seller.getUserId(),
                     seller.getFullName(),
                     seller.getEmail(),
@@ -79,7 +86,7 @@ public class UserJpaMapper {
                     seller.getOnboardingDate()
             );
         } else if (domain.getRole() == UserRole.ADMINISTRATOR) {
-            return new AdministratorEntity(
+            entity = new AdministratorEntity(
                     domain.getUserId(),
                     domain.getFullName(),
                     domain.getEmail(),
@@ -87,7 +94,7 @@ public class UserJpaMapper {
                     domain.getStatus()
             );
         } else if (domain.getRole() == UserRole.LOGISTICS_OPERATOR) {
-            return new LogisticsOperatorEntity(
+            entity = new LogisticsOperatorEntity(
                     domain.getUserId(),
                     domain.getFullName(),
                     domain.getEmail(),
@@ -95,7 +102,7 @@ public class UserJpaMapper {
                     domain.getStatus()
             );
         } else if (domain.getRole() == UserRole.SUPERVISOR) {
-            return new SupervisorEntity(
+            entity = new SupervisorEntity(
                     domain.getUserId(),
                     domain.getFullName(),
                     domain.getEmail(),
@@ -105,5 +112,7 @@ public class UserJpaMapper {
         } else {
             throw new IllegalArgumentException("Rol de usuario no soportado para persistencia: " + domain.getRole());
         }
+        entity.setPasswordHash(domain.getPasswordHash());
+        return entity;
     }
 }

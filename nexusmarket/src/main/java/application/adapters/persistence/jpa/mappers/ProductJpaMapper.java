@@ -15,6 +15,7 @@ public class ProductJpaMapper {
         if (entity == null) return null;
         return new Product(
                 entity.getProductId(),
+                entity.getSellerId(),
                 entity.getName(),
                 new ProductVariant(entity.getVariantAttribute(), entity.getVariantValue()),
                 new Money(entity.getPriceAmount(), Currency.getInstance(entity.getCurrencyCode())),
@@ -27,6 +28,17 @@ public class ProductJpaMapper {
         if (domain == null) return null;
         ProductJpaEntity entity = new ProductJpaEntity();
         entity.setProductId(domain.getProductId());
+        return updateEntity(entity, domain);
+    }
+
+    /**
+     * Copies mutable domain state onto an existing (managed) {@link ProductJpaEntity}
+     * while preserving its optimistic-locking {@code version} and audit timestamps
+     * ({@code createdAt}, {@code updatedAt}).
+     */
+    public ProductJpaEntity updateEntity(ProductJpaEntity entity, Product domain) {
+        if (entity == null || domain == null) return entity;
+        entity.setSellerId(domain.getSellerId());
         entity.setName(domain.getName());
         entity.setVariantAttribute(domain.getVariant().attribute());
         entity.setVariantValue(domain.getVariant().value());

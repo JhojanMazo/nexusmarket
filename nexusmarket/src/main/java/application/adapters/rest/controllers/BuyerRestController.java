@@ -9,19 +9,24 @@ import application.adapters.rest.dtos.requests.ProcessPaymentRequestDTO;
 import application.adapters.rest.dtos.requests.UpdateBuyerAddressesRequestDTO;
 import application.adapters.rest.dtos.responses.BuyerResponseDTO;
 import application.adapters.rest.dtos.responses.OrderResponseDTO;
+import application.adapters.rest.dtos.responses.PageResponseDTO;
 import application.adapters.rest.dtos.responses.PaymentResponseDTO;
+import application.adapters.rest.dtos.responses.ProductResponseDTO;
 import application.adapters.rest.dtos.responses.ReturnRequestResponseDTO;
 import application.adapters.rest.dtos.responses.ShoppingCartResponseDTO;
 import application.adapters.rest.mappers.CartRestMapper;
 import application.adapters.rest.mappers.OrderRestMapper;
+import application.adapters.rest.mappers.ProductRestMapper;
 import application.adapters.rest.mappers.ReturnRequestRestMapper;
 import application.adapters.rest.mappers.UserRestMapper;
 import application.domain.models.Buyer;
 import application.domain.models.Order;
+import application.domain.models.Product;
 import application.domain.models.ReturnRequest;
 import application.domain.models.ShoppingCart;
 import application.domain.ports.in.BuyerPort;
 import application.domain.valueobjects.Address;
+import application.domain.valueobjects.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,25 +54,38 @@ public class BuyerRestController {
     private final CartRestMapper cartRestMapper;
     private final OrderRestMapper orderRestMapper;
     private final ReturnRequestRestMapper returnRequestRestMapper;
+    private final ProductRestMapper productRestMapper;
 
     @Autowired
     public BuyerRestController(BuyerPort buyerPort,
                                UserRestMapper userRestMapper,
                                CartRestMapper cartRestMapper,
                                OrderRestMapper orderRestMapper,
-                               ReturnRequestRestMapper returnRequestRestMapper) {
+                               ReturnRequestRestMapper returnRequestRestMapper,
+                               ProductRestMapper productRestMapper) {
         this.buyerPort = buyerPort;
         this.userRestMapper = userRestMapper;
         this.cartRestMapper = cartRestMapper;
         this.orderRestMapper = orderRestMapper;
         this.returnRequestRestMapper = returnRequestRestMapper;
+        this.productRestMapper = productRestMapper;
+    }
+
+    public BuyerRestController(BuyerPort buyerPort,
+                               UserRestMapper userRestMapper,
+                               CartRestMapper cartRestMapper,
+                               OrderRestMapper orderRestMapper,
+                               ReturnRequestRestMapper returnRequestRestMapper) {
+        this(buyerPort, userRestMapper, cartRestMapper, orderRestMapper,
+                returnRequestRestMapper, new ProductRestMapper());
     }
 
     public BuyerRestController(BuyerPort buyerPort,
                                UserRestMapper userRestMapper,
                                CartRestMapper cartRestMapper,
                                OrderRestMapper orderRestMapper) {
-        this(buyerPort, userRestMapper, cartRestMapper, orderRestMapper, new ReturnRequestRestMapper());
+        this(buyerPort, userRestMapper, cartRestMapper, orderRestMapper,
+                new ReturnRequestRestMapper(), new ProductRestMapper());
     }
 
     @PostMapping("/register")
@@ -80,6 +98,14 @@ public class BuyerRestController {
                 userRestMapper.toAddress(request.primaryAddress())
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(userRestMapper.toBuyerResponse(buyer));
+    }
+
+    @GetMapping("/catalog")
+    public ResponseEntity<PageResponseDTO<ProductResponseDTO>> getCatalog(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        PageResult<Product> catalogPage = buyerPort.getProductsCatalog(page, size);
+        return ResponseEntity.ok(PageResponseDTO.from(catalogPage, ProductRestMapper::toResponse));
     }
 
     @GetMapping("/{buyerId}")
@@ -179,6 +205,15 @@ public class BuyerRestController {
         return ResponseEntity.ok(cartRestMapper.toResponse(cart));
     }
 
+    @PutMapping("/carts/{cartId}/items/{productId}")
+    public ResponseEntity<ShoppingCartResponseDTO> updateItemQuantity(@PathVariable("cartId") UUID cartId,
+                                                                      @PathVariable("productId") UUID productId,
+                                                                      @RequestBody Map<String, Integer> body) {
+        int quantity = body != null && body.get("quantity") != null ? body.get("quantity") : 1;
+        ShoppingCart cart = buyerPort.updateItemQuantity(cartId, productId, quantity);
+        return ResponseEntity.ok(cartRestMapper.toResponse(cart));
+    }
+
     @DeleteMapping("/carts/{cartId}/items/{productId}")
     public ResponseEntity<ShoppingCartResponseDTO> removeItem(@PathVariable("cartId") UUID cartId,
                                                              @PathVariable("productId") UUID productId) {
@@ -208,9 +243,14 @@ public class BuyerRestController {
     }
 
     @GetMapping("/{buyerId}/orders")
-    public ResponseEntity<List<OrderResponseDTO>> getOrdersByBuyerId(@PathVariable("buyerId") UUID buyerId) {
-        List<Order> orders = buyerPort.getOrdersByBuyerId(buyerId);
-        return ResponseEntity.ok(orderRestMapper.toResponseList(orders));
+    public ResponseEntity<PageResponseDTO<OrderResponseDTO>> getOrdersByBuyerId(
+            @PathVariable("buyerId") UUID buyerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size,
+            @RequestParam(name = "sortBy", defaultValue = "orderDate") String sortBy,
+            @RequestParam(name = "direction", defaultValue = "DESC") String direction) {
+        PageResult<Order> ordersPage = buyerPort.getOrdersByBuyerId(buyerId, page, size, sortBy, direction);
+        return ResponseEntity.ok(PageResponseDTO.from(ordersPage, OrderRestMapper::toResponse));
     }
 
     @PutMapping("/orders/{orderId}/delivery-address")
@@ -242,6 +282,12 @@ public class BuyerRestController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/orders/{orderId}/cancel")
+    public ResponseEntity<OrderResponseDTO> cancelOrder(@PathVariable("orderId") UUID orderId) {
+        Order cancelled = buyerPort.cancelOrder(orderId);
+        return ResponseEntity.ok(orderRestMapper.toResponse(cancelled));
+    }
+
     @PostMapping("/orders/{orderId}/return")
     public ResponseEntity<Map<String, Object>> requestReturn(@PathVariable("orderId") UUID orderId,
                                                             @RequestBody Map<String, String> payload) {
@@ -255,8 +301,11 @@ public class BuyerRestController {
     }
 
     @GetMapping("/{buyerId}/returns")
-    public ResponseEntity<List<ReturnRequestResponseDTO>> getBuyerReturns(@PathVariable("buyerId") UUID buyerId) {
+    public ResponseEntity<PageResponseDTO<ReturnRequestResponseDTO>> getBuyerReturns(
+            @PathVariable("buyerId") UUID buyerId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         List<ReturnRequest> returns = buyerPort.getBuyerReturns(buyerId);
-        return ResponseEntity.ok(returnRequestRestMapper.toResponseList(returns));
+        return ResponseEntity.ok(PageResponseDTO.of(returnRequestRestMapper.toResponseList(returns), page, size));
     }
 }

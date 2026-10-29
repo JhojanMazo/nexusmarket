@@ -5,14 +5,11 @@ import application.domain.enums.ProductType;
 import application.domain.models.Product;
 import application.domain.valueobjects.Money;
 import application.domain.valueobjects.ProductVariant;
-import org.springframework.stereotype.Service;
-
 import java.util.UUID;
 
 /**
  * 3.3 Governs creation and basic attributes of catalog products.
  */
-@Service
 public class ProductCatalogManagementService {
 
     public Product createProduct(String name, ProductVariant variant, Money price, ProductStatus status, ProductType type) {

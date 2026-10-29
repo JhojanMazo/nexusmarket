@@ -3,15 +3,12 @@ package application.domain.services.operation;
 import application.domain.exceptions.EntityNotFoundException;
 import application.domain.models.Operation;
 import application.domain.ports.out.OperationRepositoryPort;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Domain service to query operations.
  */
-@Service
 public class ConsultOperationsService {
 
     private final OperationRepositoryPort operationRepositoryPort;

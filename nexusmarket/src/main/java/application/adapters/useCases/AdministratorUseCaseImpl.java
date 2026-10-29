@@ -1,5 +1,7 @@
 package application.adapters.useCases;
 
+import application.adapters.aspect.Auditable;
+import application.domain.enums.AuditSeverity;
 import application.domain.enums.BuyerCommercialStatus;
 import application.domain.enums.OrderStatus;
 import application.domain.enums.UserRole;
@@ -41,6 +43,7 @@ import application.domain.valueobjects.Address;
 import application.domain.valueobjects.Email;
 import application.domain.valueobjects.IdentityDocument;
 import application.domain.valueobjects.Money;
+import application.domain.valueobjects.PageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,6 +57,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 @Service
+@Transactional(readOnly = true)
 public class AdministratorUseCaseImpl implements AdministratorPort {
 
     private final UserRepositoryPort userRepository;
@@ -137,6 +141,8 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "STAFF_REGISTERED", resource = "User", severity = AuditSeverity.HIGH)
     public User registerStaff(String fullName, String email, String docType, String docNumber, UserRole role) {
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
 
@@ -150,6 +156,7 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
     public Seller registerSeller(UUID adminUserId, String fullName, String email, String docType, String docNumber, LocalDate onboardingDate) {
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
 
@@ -179,6 +186,8 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "USER_STATUS_UPDATED", resource = "User", severity = AuditSeverity.CRITICAL)
     public User updateUserStatus(UUID userId, UserStatus newStatus) {
         User user = getUserById(userId);
         user.setStatus(newStatus);
@@ -186,17 +195,20 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public User getUserById(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario", userId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<User> listAllUsers() {
         return userRepository.findAll();
     }
 
     @Override
+    @Transactional
     public Buyer updateBuyerCommercialStatus(UUID buyerId, BuyerCommercialStatus status) {
         User user = getUserById(buyerId);
         if (!(user instanceof Buyer buyer)) {
@@ -207,6 +219,7 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
     public Warehouse createWarehouse(String name, Address address, WarehouseType type, UUID sellerId, double capacity) {
         if (type == WarehouseType.SELLER && sellerId != null) {
             userRepository.findById(sellerId).orElseThrow(() -> new ResourceNotFoundException("Vendedor", sellerId));
@@ -216,6 +229,7 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
     public Warehouse updateWarehouseCapacity(UUID warehouseId, double capacity) {
         Warehouse warehouse = getWarehouseById(warehouseId);
         warehouseInformationControlService.updateWarehouseCapacity(warehouse, capacity);
@@ -223,27 +237,33 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Warehouse getWarehouseById(UUID warehouseId) {
         return warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Bodega", warehouseId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Warehouse> listAllWarehouses() {
         return warehouseRepository.findAll();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Warehouse> listWarehousesByType(WarehouseType type) {
         return warehouseRepository.findByType(type);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Warehouse> listWarehousesBySeller(UUID sellerId) {
         return warehouseRepository.findBySellerId(sellerId);
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "RETURN_APPROVED", resource = "ReturnRequest", severity = AuditSeverity.HIGH)
     public ReturnRequest approveReturn(UUID returnRequestId) {
         ReturnRequest request = returnRequestRepository.findById(returnRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de devolución", returnRequestId));
@@ -252,6 +272,8 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "RETURN_REJECTED", resource = "ReturnRequest", severity = AuditSeverity.HIGH)
     public ReturnRequest rejectReturn(UUID returnRequestId) {
         ReturnRequest request = returnRequestRepository.findById(returnRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de devolución", returnRequestId));
@@ -260,6 +282,8 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "REFUND_PROCESSED", resource = "Refund", severity = AuditSeverity.CRITICAL)
     public Refund processRefund(UUID returnRequestId, BigDecimal amount, String currencyCode) {
         ReturnRequest request = returnRequestRepository.findById(returnRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de devolución", returnRequestId));
@@ -271,16 +295,37 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ReturnRequest> listAllReturns() {
         return returnRequestRepository.findAll();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Refund> listAllRefunds() {
         return refundRepository.findAll();
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PageResult<Order> listAllOrders(int page, int size, String sortBy, String direction) {
+        if (orderRepository == null) {
+            return PageResult.of(List.of(), page, size);
+        }
+        return orderRepository.findAll(page, size, sortBy, direction);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<Product> listAllProducts(int page, int size, String sortBy, String direction) {
+        if (productRepository == null) {
+            return PageResult.of(List.of(), page, size);
+        }
+        return productRepository.findAll(page, size, sortBy, direction);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public AdministrativeReport getAdministrativeReport() {
         List<User> users = userRepository != null ? userRepository.findAll() : Collections.emptyList();
         List<Product> products = productRepository != null ? productRepository.findAll() : Collections.emptyList();
@@ -297,6 +342,8 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional
+    @Auditable(action = "INVOICE_GENERATED", resource = "Invoice", severity = AuditSeverity.HIGH)
     public Invoice generateInvoice(UUID orderId, BigDecimal taxAmount, String currencyCode) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden", orderId));
@@ -332,35 +379,41 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Invoice getInvoiceById(UUID invoiceId) {
         return invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Factura", invoiceId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Invoice getInvoiceByOrderId(UUID orderId) {
         return invoiceRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Factura para la orden", orderId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Invoice> getAllInvoices() {
         return invoiceRepository.findAll();
     }
 
     @Override
+    @Transactional
     public Operation recordOperation(String operationType, String description, UUID operatorId, String payload) {
         Operation operation = Operation.create(operationType, description, operatorId, payload);
         return operationRepositoryPort.save(operation);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Operation getOperationById(UUID operationId) {
         return operationRepositoryPort.findById(operationId)
                 .orElseThrow(() -> new EntityNotFoundException("Operación", operationId));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Operation> getAllOperations() {
         return operationRepositoryPort.findAll();
     }

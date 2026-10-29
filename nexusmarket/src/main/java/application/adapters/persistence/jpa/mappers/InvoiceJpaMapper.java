@@ -26,10 +26,14 @@ public class InvoiceJpaMapper {
         Money subtotal = new Money(entity.getSubtotalAmount(), currency);
         Money tax = new Money(entity.getTaxAmount(), currency);
 
+        java.time.LocalDate issueDate = entity.getIssueDate() != null
+                ? entity.getIssueDate()
+                : (entity.getCreatedAt() != null ? entity.getCreatedAt().toLocalDate() : java.time.LocalDate.now());
+
         return new Invoice(
                 entity.getInvoiceId(),
                 order,
-                entity.getIssueDate(),
+                issueDate,
                 subtotal,
                 tax
         );
