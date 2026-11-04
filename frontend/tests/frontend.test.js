@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { formatMoney, buildProductIllustrationSvg } from '../public/js/config/env.js';
 import { sessionStore, decodeJwtPayload, isJwtExpired } from '../public/js/state/sessionStore.js';
 import { apiRequest, ApiError } from '../public/js/api/httpClient.js';
-import { authApi } from '../public/js/api/marketplaceApi.js';
+import { authApi, buyerApi, sellerApi, logisticsApi, supervisorApi, adminApi } from '../public/js/api/marketplaceApi.js';
 import { matchRoutePattern, evaluateRouteAccess } from '../public/js/router/router.js';
 import { escapeHtml, renderProductCard, renderPagination } from '../public/js/components/uiComponents.js';
 
@@ -157,4 +157,43 @@ test('uiComponents previene XSS y renderiza tarjetas de producto y paginación a
   const svgUri = buildProductIllustrationSvg({ name: 'Laptop', type: 'PHYSICAL' });
   assert.ok(svgUri.startsWith('data:image/svg+xml;utf8,'));
   assert.ok(formatMoney(1500000, 'COP').length > 0);
+});
+
+test('marketplaceApi cubre recuperación de contraseña, renovación JWT, facturación y auditoría', async () => {
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  sessionStore.setSession({
+    token: createSampleJwt({ sub: 'admin-1', exp: futureExp }),
+    userId: 'admin-1',
+    email: 'admin@nexusmarket.com',
+    role: 'ADMINISTRATOR'
+  });
+
+  const calls = [];
+  const mockFetch = async (url, options) => {
+    calls.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : null });
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ status: 'OK' })
+    };
+  };
+
+  await authApi.requestPasswordRecovery('buyer@nexusmarket.com', { fetchImpl: mockFetch });
+  await authApi.resetPassword('tok-123', 'NewPass2026!', { fetchImpl: mockFetch });
+  await authApi.refreshToken({ fetchImpl: mockFetch });
+  await adminApi.generateInvoice('o-1', 19000, 'COP', { fetchImpl: mockFetch });
+  await adminApi.getAuditLogs({ page: 0, size: 10 }, { fetchImpl: mockFetch });
+  await supervisorApi.getAuditLogs({ fetchImpl: mockFetch });
+
+  assert.equal(calls.length, 6);
+  assert.ok(calls[0].url.endsWith('/auth/password-recovery/request'));
+  assert.equal(calls[0].body.email, 'buyer@nexusmarket.com');
+  assert.ok(calls[1].url.endsWith('/auth/password-recovery/reset'));
+  assert.equal(calls[1].body.token, 'tok-123');
+  assert.ok(calls[2].url.endsWith('/auth/refresh'));
+  assert.ok(calls[3].url.endsWith('/admin/invoices'));
+  assert.equal(calls[3].body.currency, 'COP');
+  assert.equal(calls[3].body.currencyCode, 'COP');
+  assert.ok(calls[4].url.includes('/admin/audit/logs'));
+  assert.ok(calls[5].url.endsWith('/supervisors/audit/logs'));
 });

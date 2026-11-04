@@ -60,7 +60,7 @@ function renderHeaderNav(session, cartCount) {
   ];
 
   if (session) {
-    if (session.role === 'BUYER' || session.role === 'ADMINISTRATOR') {
+    if (session.role === 'BUYER') {
       links.push(`
         <a href="#/cart" class="nav-link nav-cart-link" aria-label="Carrito de compras (${cartCount} unidades)">
           🛒 Carrito <span class="cart-badge">${cartCount}</span>

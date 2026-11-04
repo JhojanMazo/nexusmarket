@@ -31,14 +31,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Transactional(readOnly = true)
 public class PublicAccessUseCaseImpl implements PublicAccessPort {
+
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(15);
+    private static final Duration RECOVERY_TOKEN_TTL = Duration.ofMinutes(15);
+
+    private record FailedLoginRecord(int attempts, Instant lockedUntil) {}
+    private record PasswordRecoveryRecord(UUID userId, String email, Instant expiresAt) {}
+
+    private final Map<String, FailedLoginRecord> failedLoginAttempts = new ConcurrentHashMap<>();
+    private final Map<String, PasswordRecoveryRecord> recoveryTokens = new ConcurrentHashMap<>();
+    private final Map<String, String> latestRecoveryTokenByEmail = new ConcurrentHashMap<>();
 
     private final UserRepositoryPort userRepository;
     private final ProductRepositoryPort productRepository;
@@ -95,29 +110,30 @@ public class PublicAccessUseCaseImpl implements PublicAccessPort {
             throw new IllegalArgumentException("La contraseña es obligatoria");
         }
 
+        String normalizedEmailKey = emailStr.trim().toLowerCase(Locale.ROOT);
+        checkBruteForceLockout(normalizedEmailKey);
+
         Email email;
         try {
             email = new Email(emailStr.trim());
         } catch (Exception e) {
+            recordFailedLoginAttempt(normalizedEmailKey);
             throw new IllegalArgumentException("Credenciales inválidas");
         }
 
         User user = userRepository.findByEmail(email).orElse(null);
         if (user == null || user.getPasswordHash() == null) {
+            recordFailedLoginAttempt(normalizedEmailKey);
             throw new IllegalArgumentException("Credenciales inválidas");
         }
 
         boolean passwordMatches = passwordServicePort != null && passwordServicePort.matches(password, user.getPasswordHash());
-        if (!passwordMatches && ("NexusMarket2025!".equals(password) || "NexusMarket2026!".equals(password))) {
-            passwordMatches = passwordServicePort != null && (
-                    passwordServicePort.matches("NexusMarket2025!", user.getPasswordHash()) ||
-                    passwordServicePort.matches("NexusMarket2026!", user.getPasswordHash())
-            );
-        }
-
         if (!passwordMatches) {
+            recordFailedLoginAttempt(normalizedEmailKey);
             throw new IllegalArgumentException("Credenciales inválidas");
         }
+
+        failedLoginAttempts.remove(normalizedEmailKey);
 
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new BusinessRuleException("La cuenta de usuario no se encuentra activa (Estado: " + user.getStatus() + ")");
@@ -137,13 +153,96 @@ public class PublicAccessUseCaseImpl implements PublicAccessPort {
     @Override
     @Auditable(action = "USER_LOGOUT", resource = "User", severity = AuditSeverity.LOW)
     public void logout(String token) {
-        // Token invalidated or logged for session tracking
+        if (jwtServicePort != null && token != null && !token.isBlank()) {
+            jwtServicePort.revokeToken(token);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Auditable(action = "USER_TOKEN_REFRESH", resource = "User", severity = AuditSeverity.LOW)
+    public AuthenticationResult refreshToken(String token) {
+        if (token == null || token.isBlank() || jwtServicePort == null || !jwtServicePort.validateToken(token)) {
+            throw new IllegalArgumentException("El token JWT es inválido o ha expirado");
+        }
+        UUID userId = jwtServicePort.extractUserId(token);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessRuleException("La cuenta de usuario no se encuentra activa");
+        }
+        jwtServicePort.revokeToken(token);
+        String newToken = jwtServicePort.generateToken(user.getUserId(), user.getEmail().value(), user.getRole().name());
+        return new AuthenticationResult(
+                user.getUserId(),
+                user.getFullName(),
+                user.getEmail().value(),
+                user.getRole(),
+                newToken
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Auditable(action = "PASSWORD_RECOVERY_REQUESTED", resource = "User", severity = AuditSeverity.MEDIUM)
+    public void requestPasswordRecovery(String emailStr) {
+        if (emailStr == null || emailStr.isBlank()) {
+            return;
+        }
+        Email email;
+        try {
+            email = new Email(emailStr.trim());
+        } catch (Exception e) {
+            return;
+        }
+        userRepository.findByEmail(email).ifPresent(user -> {
+            if (user.getStatus() == UserStatus.ACTIVE) {
+                String recoveryToken = UUID.randomUUID().toString();
+                recoveryTokens.put(recoveryToken, new PasswordRecoveryRecord(
+                        user.getUserId(),
+                        user.getEmail().value(),
+                        Instant.now().plus(RECOVERY_TOKEN_TTL)
+                ));
+                latestRecoveryTokenByEmail.put(user.getEmail().value().toLowerCase(Locale.ROOT), recoveryToken);
+            }
+        });
+    }
+
+    public String getLatestRecoveryTokenForEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        return latestRecoveryTokenByEmail.get(email.trim().toLowerCase(Locale.ROOT));
+    }
+
+    @Override
+    @Transactional
+    @Auditable(action = "PASSWORD_RESET_COMPLETED", resource = "User", severity = AuditSeverity.HIGH)
+    public void resetPassword(String recoveryToken, String newPassword) {
+        if (recoveryToken == null || recoveryToken.isBlank()) {
+            throw new IllegalArgumentException("El token de recuperación es obligatorio");
+        }
+        validatePasswordPolicy(newPassword);
+
+        PasswordRecoveryRecord record = recoveryTokens.remove(recoveryToken.trim());
+        if (record == null || Instant.now().isAfter(record.expiresAt())) {
+            throw new IllegalArgumentException("El token de recuperación es inválido o ha expirado");
+        }
+        latestRecoveryTokenByEmail.remove(record.email().toLowerCase(Locale.ROOT));
+
+        User user = userRepository.findById(record.userId())
+                .orElseThrow(() -> new IllegalArgumentException("El token de recuperación es inválido o ha expirado"));
+        String encoded = passwordServicePort != null ? passwordServicePort.encode(newPassword) : newPassword;
+        user.setPasswordHash(encoded);
+        userRepository.save(user);
+        failedLoginAttempts.remove(record.email().toLowerCase(Locale.ROOT));
     }
 
     @Override
     @Transactional
     public Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress) {
-        return registerBuyer(fullName, email, docType, docNumber, primaryAddress, "NexusMarket2025!");
+        String generatedCompliantPassword = "Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!";
+        return registerBuyer(fullName, email, docType, docNumber, primaryAddress, generatedCompliantPassword);
     }
 
     @Override
@@ -152,7 +251,13 @@ public class PublicAccessUseCaseImpl implements PublicAccessPort {
         customerRegistrationService.validateRegistrationAllowed(email);
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
 
-        String effectivePassword = (rawPassword != null && !rawPassword.isBlank()) ? rawPassword : "NexusMarket2025!";
+        String effectivePassword;
+        if (rawPassword != null && !rawPassword.isBlank()) {
+            validatePasswordPolicy(rawPassword);
+            effectivePassword = rawPassword;
+        } else {
+            effectivePassword = "Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!";
+        }
         String passwordHash = passwordServicePort != null ? passwordServicePort.encode(effectivePassword) : effectivePassword;
 
         Buyer buyer = Buyer.create(
@@ -164,6 +269,47 @@ public class PublicAccessUseCaseImpl implements PublicAccessPort {
         );
         User saved = userRepository.save(buyer);
         return (Buyer) saved;
+    }
+
+    private void checkBruteForceLockout(String normalizedEmailKey) {
+        FailedLoginRecord record = failedLoginAttempts.get(normalizedEmailKey);
+        if (record != null && record.lockedUntil() != null) {
+            if (Instant.now().isBefore(record.lockedUntil())) {
+                throw new BusinessRuleException("Cuenta bloqueada temporalmente por múltiples intentos fallidos de inicio de sesión. Intente nuevamente más tarde.");
+            } else {
+                failedLoginAttempts.remove(normalizedEmailKey);
+            }
+        }
+    }
+
+    private void recordFailedLoginAttempt(String normalizedEmailKey) {
+        failedLoginAttempts.compute(normalizedEmailKey, (key, existing) -> {
+            int nextAttempts = (existing == null || (existing.lockedUntil() != null && Instant.now().isAfter(existing.lockedUntil())))
+                    ? 1
+                    : existing.attempts() + 1;
+            Instant lockedUntil = nextAttempts >= MAX_FAILED_ATTEMPTS
+                    ? Instant.now().plus(LOCKOUT_DURATION)
+                    : null;
+            return new FailedLoginRecord(nextAttempts, lockedUntil);
+        });
+    }
+
+    public static void validatePasswordPolicy(String password) {
+        if (password == null || password.length() < 8) {
+            throw new IllegalArgumentException("La contraseña debe tener al menos 8 caracteres");
+        }
+        boolean hasUpper = false;
+        boolean hasLower = false;
+        boolean hasDigit = false;
+        for (int i = 0; i < password.length(); i++) {
+            char c = password.charAt(i);
+            if (Character.isUpperCase(c)) hasUpper = true;
+            else if (Character.isLowerCase(c)) hasLower = true;
+            else if (Character.isDigit(c)) hasDigit = true;
+        }
+        if (!hasUpper || !hasLower || !hasDigit) {
+            throw new IllegalArgumentException("La contraseña debe incluir al menos una letra mayúscula, una minúscula y un número");
+        }
     }
 
     @Override
@@ -183,7 +329,7 @@ public class PublicAccessUseCaseImpl implements PublicAccessPort {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "products_catalog", key = "#page + '-' + #size")
+    @Cacheable(value = "products_catalog", key = "#page + '-' + #size + '-' + #sortBy + '-' + #direction")
     public PageResult<Product> getPublishedCatalog(int page, int size, String sortBy, String direction) {
         return productRepository.findByStatus(ProductStatus.PUBLISHED, page, size, sortBy, direction);
     }

@@ -1,6 +1,7 @@
 package application.adapters.rest.controllers;
 
 import application.adapters.rest.dtos.responses.AdministrativeReportResponseDTO;
+import application.adapters.rest.dtos.responses.AuditLogResponseDTO;
 import application.adapters.rest.dtos.responses.InventoryResponseDTO;
 import application.adapters.rest.dtos.responses.OperationResponseDTO;
 import application.adapters.rest.dtos.responses.OrderResponseDTO;
@@ -8,6 +9,7 @@ import application.adapters.rest.dtos.responses.RefundResponseDTO;
 import application.adapters.rest.dtos.responses.ReturnRequestResponseDTO;
 import application.adapters.rest.dtos.responses.ShipmentResponseDTO;
 import application.adapters.rest.dtos.responses.WarehouseResponseDTO;
+import application.adapters.rest.mappers.AuditLogRestMapper;
 import application.adapters.rest.mappers.InventoryRestMapper;
 import application.adapters.rest.mappers.OperationRestMapper;
 import application.adapters.rest.mappers.OrderRestMapper;
@@ -187,5 +189,11 @@ public class SupervisorRestController {
     public ResponseEntity<List<OperationResponseDTO>> getAuditOperations() {
         List<Operation> operations = supervisorPort.getAuditOperations();
         return ResponseEntity.ok(operationRestMapper.toResponseList(operations));
+    }
+
+    @GetMapping("/audit/logs")
+    public ResponseEntity<List<AuditLogResponseDTO>> getAuditLogs() {
+        AuditLogRestMapper mapper = new AuditLogRestMapper();
+        return ResponseEntity.ok(mapper.toResponseList(supervisorPort.getAuditLogs()));
     }
 }

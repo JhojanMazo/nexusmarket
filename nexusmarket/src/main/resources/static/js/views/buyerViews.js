@@ -136,6 +136,15 @@ export async function renderCartView(container) {
         btn.addEventListener('click', async () => {
           const productId = btn.dataset.productId;
           const nextQty = Number(btn.dataset.qty);
+          if (nextQty <= 0) {
+            const ok = await confirmDialog({
+              title: 'Eliminar producto del carrito',
+              message: '¿Desea eliminar este producto de su carrito?',
+              confirmText: 'Sí, eliminar',
+              danger: true
+            });
+            if (!ok) return;
+          }
           try {
             await buyerApi.updateCartItemQuantity(cart.cartId, productId, nextQty);
             await loadCart();
@@ -676,6 +685,7 @@ export async function renderBuyerOrdersView(container) {
               <tr>
                 <th>ID Solicitud</th>
                 <th>ID Orden</th>
+                <th>Motivo</th>
                 <th>Estado de Devolución</th>
               </tr>
             </thead>
@@ -686,6 +696,7 @@ export async function renderBuyerOrdersView(container) {
                 <tr>
                   <td><code>${escapeHtml(r.requestId)}</code></td>
                   <td><code>${escapeHtml(r.orderId)}</code></td>
+                  <td>${escapeHtml(r.reason || 'Solicitud de devolución')}</td>
                   <td><span class="badge badge-status-published">${escapeHtml(r.status)}</span></td>
                 </tr>
               `

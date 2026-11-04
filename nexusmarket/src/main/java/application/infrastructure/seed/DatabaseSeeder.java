@@ -25,6 +25,7 @@ import application.domain.valueobjects.ProductVariant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -49,6 +50,12 @@ public class DatabaseSeeder implements CommandLineRunner {
     private final InventoryRepositoryPort inventoryRepositoryPort;
     private final PasswordServicePort passwordServicePort;
 
+    @Value("${nexusmarket.seed.enabled:true}")
+    private boolean seedEnabled = true;
+
+    @Value("${nexusmarket.seed.demo-password:NexusMarket2026!}")
+    private String seedDemoPassword = "NexusMarket2026!";
+
     @Autowired
     public DatabaseSeeder(UserRepositoryPort userRepositoryPort,
                           ProductRepositoryPort productRepositoryPort,
@@ -71,12 +78,16 @@ public class DatabaseSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        if (!seedEnabled) {
+            log.info("DatabaseSeeder is disabled (nexusmarket.seed.enabled=false).");
+            return;
+        }
         Seller defaultSeller = seedDefaultUsers();
         seedWarehousesAndProducts(defaultSeller);
     }
 
     private Seller seedDefaultUsers() {
-        String defaultPasswordHash = passwordServicePort.encode("NexusMarket2025!");
+        String defaultPasswordHash = passwordServicePort.encode(seedDemoPassword);
 
         // Administrator
         Email adminEmail = new Email("admin@nexusmarket.com");
@@ -91,7 +102,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             );
             userRepositoryPort.save(admin);
             log.info("Seeded default administrator: {}", adminEmail.value());
-        } else if (adminOpt.get().getPasswordHash() == null) {
+        } else if (needsPasswordHashRefresh(adminOpt.get().getPasswordHash())) {
             User admin = adminOpt.get();
             admin.setPasswordHash(defaultPasswordHash);
             userRepositoryPort.save(admin);
@@ -110,7 +121,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             );
             userRepositoryPort.save(supervisor);
             log.info("Seeded default supervisor: {}", supervisorEmail.value());
-        } else if (supervisorOpt.get().getPasswordHash() == null) {
+        } else if (needsPasswordHashRefresh(supervisorOpt.get().getPasswordHash())) {
             User supervisor = supervisorOpt.get();
             supervisor.setPasswordHash(defaultPasswordHash);
             userRepositoryPort.save(supervisor);
@@ -129,7 +140,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             );
             userRepositoryPort.save(logistics);
             log.info("Seeded default logistics operator: {}", logisticsEmail.value());
-        } else if (logisticsOpt.get().getPasswordHash() == null) {
+        } else if (needsPasswordHashRefresh(logisticsOpt.get().getPasswordHash())) {
             User logistics = logisticsOpt.get();
             logistics.setPasswordHash(defaultPasswordHash);
             userRepositoryPort.save(logistics);
@@ -152,7 +163,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             log.info("Seeded default seller: {}", sellerEmail.value());
         } else {
             seller = (Seller) existingSeller.get();
-            if (seller.getPasswordHash() == null) {
+            if (needsPasswordHashRefresh(seller.getPasswordHash())) {
                 seller.setPasswordHash(defaultPasswordHash);
                 userRepositoryPort.save(seller);
             }
@@ -174,7 +185,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             );
             userRepositoryPort.save(buyer);
             log.info("Seeded default buyer: {}", buyerEmail.value());
-        } else if (buyerOpt.get().getPasswordHash() == null) {
+        } else if (needsPasswordHashRefresh(buyerOpt.get().getPasswordHash())) {
             Buyer buyer = (Buyer) buyerOpt.get();
             buyer.setPasswordHash(defaultPasswordHash);
             userRepositoryPort.save(buyer);
@@ -183,8 +194,13 @@ public class DatabaseSeeder implements CommandLineRunner {
         return seller;
     }
 
+    private boolean needsPasswordHashRefresh(String passwordHash) {
+        return passwordHash == null || passwordHash.startsWith("$s256$");
+    }
+
     private void seedWarehousesAndProducts(Seller defaultSeller) {
         Currency cop = Currency.getInstance("COP");
+        UUID sellerId = defaultSeller != null ? defaultSeller.getUserId() : null;
 
         Warehouse centralWarehouse;
         if (warehouseRepositoryPort.findAll().isEmpty()) {
@@ -223,9 +239,11 @@ public class DatabaseSeeder implements CommandLineRunner {
             }
         }
 
-        if (productRepositoryPort.findAll().isEmpty()) {
+        var existingProducts = productRepositoryPort.findAll();
+        if (existingProducts.isEmpty()) {
             Product p1 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "MacBook Pro M3 Max",
                     new ProductVariant("Almacenamiento", "1TB SSD / 36GB RAM"),
                     new Money(new BigDecimal("14500000"), cop),
@@ -235,6 +253,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
             Product p2 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "Licencia Nexus Cloud Enterprise",
                     new ProductVariant("Suscripción", "Anual Multi-Región"),
                     new Money(new BigDecimal("2800000"), cop),
@@ -244,6 +263,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
             Product p3 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "Monitor UltraWide 4K OLED 34\"",
                     new ProductVariant("Panel", "240Hz HDR TrueBlack"),
                     new Money(new BigDecimal("4950000"), cop),
@@ -253,6 +273,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
             Product p4 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "Teclado Mecánico Pro Wireless",
                     new ProductVariant("Switch", "Táctil Silencioso RGB"),
                     new Money(new BigDecimal("680000"), cop),
@@ -262,6 +283,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
             Product p5 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "Suite Seguridad DevSecOps Pro",
                     new ProductVariant("Edición", "Licencia Corporativa 25 Nodos"),
                     new Money(new BigDecimal("3600000"), cop),
@@ -271,6 +293,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
             Product p6 = productRepositoryPort.save(new Product(
                     UUID.randomUUID(),
+                    sellerId,
                     "Auriculares Studio Noise-Cancelling",
                     new ProductVariant("Color", "Negro Titanio Hi-Res"),
                     new Money(new BigDecimal("1450000"), cop),
@@ -287,6 +310,20 @@ public class DatabaseSeeder implements CommandLineRunner {
                 inventoryRepositoryPort.save(Inventory.create(p4, targetWh, 120));
                 inventoryRepositoryPort.save(Inventory.create(p6, centralWarehouse, 80));
                 log.info("Seeded initial inventory lots for physical products.");
+            }
+        } else if (sellerId != null) {
+            for (Product existing : existingProducts) {
+                if (existing.getSellerId() == null) {
+                    productRepositoryPort.save(new Product(
+                            existing.getProductId(),
+                            sellerId,
+                            existing.getName(),
+                            existing.getVariant(),
+                            existing.getPrice(),
+                            existing.getStatus(),
+                            existing.getType()
+                    ));
+                }
             }
         }
     }

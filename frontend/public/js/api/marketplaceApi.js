@@ -21,6 +21,29 @@ export const authApi = {
     });
   },
 
+  refreshToken(customOptions = {}) {
+    return apiRequest('/auth/refresh', {
+      method: 'POST',
+      ...customOptions
+    });
+  },
+
+  requestPasswordRecovery(email, customOptions = {}) {
+    return apiRequest('/auth/password-recovery/request', {
+      method: 'POST',
+      body: { email },
+      ...customOptions
+    });
+  },
+
+  resetPassword(token, newPassword, customOptions = {}) {
+    return apiRequest('/auth/password-recovery/reset', {
+      method: 'POST',
+      body: { token, newPassword },
+      ...customOptions
+    });
+  },
+
   registerBuyer(buyerPayload, customOptions = {}) {
     return apiRequest('/auth/register', {
       method: 'POST',
@@ -343,8 +366,12 @@ export const supervisorApi = {
     });
   },
 
-  getAuditOperations() {
-    return apiRequest('/supervisors/audit/operations');
+  getAuditOperations(customOptions = {}) {
+    return apiRequest('/supervisors/audit/operations', customOptions);
+  },
+
+  getAuditLogs(customOptions = {}) {
+    return apiRequest('/supervisors/audit/logs', customOptions);
   }
 };
 
@@ -445,15 +472,20 @@ export const adminApi = {
     return apiRequest('/admin/invoices', { params: { page, size } });
   },
 
-  generateInvoice(orderId, taxAmount, currencyCode = 'COP') {
+  generateInvoice(orderId, taxAmount, currencyCode = 'COP', customOptions = {}) {
     return apiRequest('/admin/invoices', {
       method: 'POST',
-      body: { orderId, taxAmount, currencyCode }
+      body: { orderId, taxAmount, currency: currencyCode, currencyCode },
+      ...customOptions
     });
   },
 
-  getOperations({ page = 0, size = 20 } = {}) {
-    return apiRequest('/admin/operations', { params: { page, size } });
+  getOperations({ page = 0, size = 20 } = {}, customOptions = {}) {
+    return apiRequest('/admin/operations', { params: { page, size }, ...customOptions });
+  },
+
+  getAuditLogs({ page = 0, size = 20 } = {}, customOptions = {}) {
+    return apiRequest('/admin/audit/logs', { params: { page, size }, ...customOptions });
   },
 
   recordOperation(operationPayload) {

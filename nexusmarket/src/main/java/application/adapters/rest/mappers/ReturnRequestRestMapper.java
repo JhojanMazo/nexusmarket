@@ -15,7 +15,8 @@ public class ReturnRequestRestMapper {
         return new ReturnRequestResponseDTO(
                 request.getRequestId(),
                 request.getOrder() != null ? request.getOrder().getOrderId() : null,
-                request.getStatus()
+                request.getStatus(),
+                request.getReason()
         );
     }
 

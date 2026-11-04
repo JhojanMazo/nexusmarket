@@ -11,11 +11,15 @@ import java.util.Objects;
 public class ReturnsAdministrationService {
 
     public ReturnRequest initiateReturn(Order order) {
+        return initiateReturn(order, "Customer requested return");
+    }
+
+    public ReturnRequest initiateReturn(Order order, String reason) {
         Objects.requireNonNull(order, "Order must not be null");
         if (order.getStatus() != OrderStatus.DELIVERED_COMPLETED) {
             throw new IllegalStateException("Solo se puede solicitar devolución para órdenes entregadas (DELIVERED_COMPLETED)");
         }
-        return ReturnRequest.create(order);
+        return ReturnRequest.create(order, reason);
     }
 
     public void approveReturn(ReturnRequest returnRequest) {

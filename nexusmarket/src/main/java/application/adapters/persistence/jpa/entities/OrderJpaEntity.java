@@ -34,6 +34,10 @@ public class OrderJpaEntity extends AuditableJpaEntity {
     @Column(name = "order_id", nullable = false)
     private UUID orderId;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "buyer_id", nullable = false)
     private BuyerEntity buyer;

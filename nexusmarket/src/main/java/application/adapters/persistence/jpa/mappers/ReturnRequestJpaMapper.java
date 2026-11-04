@@ -20,7 +20,7 @@ public class ReturnRequestJpaMapper {
     public ReturnRequest toDomain(ReturnRequestJpaEntity entity) {
         if (entity == null) return null;
         Order order = orderJpaMapper.toDomain(entity.getOrder());
-        return ReturnRequest.reconstitute(entity.getRequestId(), order, entity.getStatus());
+        return ReturnRequest.reconstitute(entity.getRequestId(), order, entity.getStatus(), entity.getReason());
     }
 
     public ReturnRequestJpaEntity toEntity(ReturnRequest domain,
@@ -31,6 +31,6 @@ public class ReturnRequestJpaMapper {
                 ? orderRepository.findById(domain.getOrder().getOrderId())
                     .orElseGet(() -> orderJpaMapper.toEntity(domain.getOrder(), productRepository))
                 : (domain.getOrder() != null ? orderJpaMapper.toEntity(domain.getOrder(), productRepository) : null);
-        return new ReturnRequestJpaEntity(domain.getRequestId(), orderEntity, domain.getStatus());
+        return new ReturnRequestJpaEntity(domain.getRequestId(), orderEntity, domain.getStatus(), domain.getReason());
     }
 }

@@ -56,6 +56,7 @@ export function confirmDialog({ title, message, confirmText = 'Confirmar', cance
       return;
     }
 
+    const previousFocus = document.activeElement;
     overlay.innerHTML = `
       <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <h3 id="modal-title" class="modal-title">${escapeHtml(title)}</h3>
@@ -68,11 +69,24 @@ export function confirmDialog({ title, message, confirmText = 'Confirmar', cance
     `;
     overlay.classList.remove('hidden');
 
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup(false);
+      }
+    };
+
     const cleanup = (result) => {
+      document.removeEventListener('keydown', onKeyDown);
       overlay.classList.add('hidden');
       overlay.innerHTML = '';
+      if (previousFocus && typeof previousFocus.focus === 'function') {
+        previousFocus.focus();
+      }
       resolve(result);
     };
+
+    document.addEventListener('keydown', onKeyDown);
 
     const confirmBtn = document.getElementById('modal-confirm-btn');
     const cancelBtn = document.getElementById('modal-cancel-btn');

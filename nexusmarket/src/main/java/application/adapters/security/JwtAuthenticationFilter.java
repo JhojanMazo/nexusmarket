@@ -32,18 +32,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return true;
-        }
-        String path = resolvePath(request);
-        return SecurityConfig.isPublicPath(path);
+        return false;
+    }
+
+    private void applySecurityHeaders(HttpServletResponse response) {
+        response.setHeader("X-Content-Type-Options", "nosniff");
+        response.setHeader("X-Frame-Options", "DENY");
+        response.setHeader("X-XSS-Protection", "0");
+        response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        response.setHeader("Cache-Control", "no-store");
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        applySecurityHeaders(response);
         String path = resolvePath(request);
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod()) || SecurityConfig.isPublicPath(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String authHeader = request.getHeader(AUTHORIZATION_HEADER);
 
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {

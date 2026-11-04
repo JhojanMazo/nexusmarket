@@ -139,4 +139,62 @@ class PublicAccessUseCaseImplTest {
         assertNotNull(saved);
         assertEquals("Buyer One", saved.getFullName());
     }
+
+    @Test
+    void authenticate_LocksAccount_AfterFiveFailedAttempts() {
+        User user = User.createStaff("Staff Lock", new Email("lock@nexus.com"),
+                new IdentityDocument("CC", "99999"), UserRole.ADMINISTRATOR, "hashed.secret");
+
+        when(userRepository.findByEmail(any(Email.class))).thenReturn(Optional.of(user));
+        when(passwordServicePort.matches("BadPass1", "hashed.secret")).thenReturn(false);
+
+        for (int i = 0; i < 5; i++) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    publicAccessUseCase.authenticate("lock@nexus.com", "BadPass1"));
+        }
+
+        // 6th attempt even with valid password should throw BusinessRuleException due to temporary lockout
+        BusinessRuleException lockEx = assertThrows(BusinessRuleException.class, () ->
+                publicAccessUseCase.authenticate("lock@nexus.com", "Password123!"));
+        org.junit.jupiter.api.Assertions.assertTrue(lockEx.getMessage().contains("bloqueada temporalmente"));
+    }
+
+    @Test
+    void registerBuyerWithPassword_EnforcesPasswordPolicy() {
+        Address address = new Address("Cra 1", "Bogota", "DC", "Colombia", "1101", null);
+
+        // Weak passwords should fail policy validation
+        assertThrows(IllegalArgumentException.class, () ->
+                publicAccessUseCase.registerBuyer("Buyer Weak", "weak@nexus.com", "CC", "54321", address, "short1A"));
+        assertThrows(IllegalArgumentException.class, () ->
+                publicAccessUseCase.registerBuyer("Buyer Weak", "weak@nexus.com", "CC", "54321", address, "alllowercase123"));
+        assertThrows(IllegalArgumentException.class, () ->
+                publicAccessUseCase.registerBuyer("Buyer Weak", "weak@nexus.com", "CC", "54321", address, "NoDigitsPassword"));
+    }
+
+    @Test
+    void passwordRecoveryAndReset_AntiEnumerationAndTokenConsumption() {
+        User user = User.createStaff("Recover User", new Email("recover@nexus.com"),
+                new IdentityDocument("CC", "77777"), UserRole.ADMINISTRATOR, "old.hash");
+
+        when(userRepository.findByEmail(new Email("recover@nexus.com"))).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail(new Email("unknown@nexus.com"))).thenReturn(Optional.empty());
+        when(userRepository.findById(user.getUserId())).thenReturn(Optional.of(user));
+        when(passwordServicePort.encode("NewSecure2026!")).thenReturn("$2a$10$new.hash");
+
+        // Anti-enumeration: neither existing nor non-existing accounts throw exceptions
+        publicAccessUseCase.requestPasswordRecovery("recover@nexus.com");
+        publicAccessUseCase.requestPasswordRecovery("unknown@nexus.com");
+
+        String token = publicAccessUseCase.getLatestRecoveryTokenForEmail("recover@nexus.com");
+        assertNotNull(token);
+        org.junit.jupiter.api.Assertions.assertNull(publicAccessUseCase.getLatestRecoveryTokenForEmail("unknown@nexus.com"));
+
+        publicAccessUseCase.resetPassword(token, "NewSecure2026!");
+        assertEquals("$2a$10$new.hash", user.getPasswordHash());
+
+        // Reusing same recovery token must fail
+        assertThrows(IllegalArgumentException.class, () ->
+                publicAccessUseCase.resetPassword(token, "AnotherPass2026!"));
+    }
 }

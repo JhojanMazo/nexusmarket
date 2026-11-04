@@ -5,6 +5,7 @@ import application.domain.enums.UserRole;
 import application.domain.enums.UserStatus;
 import application.domain.enums.WarehouseType;
 import application.domain.models.AdministrativeReport;
+import application.domain.models.AuditLog;
 import application.domain.models.Buyer;
 import application.domain.models.Invoice;
 import application.domain.models.Operation;
@@ -67,4 +68,7 @@ public interface AdministratorPort {
     Operation recordOperation(String operationType, String description, UUID operatorId, String payload);
     Operation getOperationById(UUID operationId);
     List<Operation> getAllOperations();
+    default List<AuditLog> getAuditLogs() {
+        return List.of();
+    }
 }

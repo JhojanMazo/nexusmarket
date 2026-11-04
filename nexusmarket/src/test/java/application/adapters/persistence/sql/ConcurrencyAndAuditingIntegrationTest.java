@@ -296,4 +296,73 @@ class ConcurrencyAndAuditingIntegrationTest {
         assertTrue(!updatedOrder.getUpdatedAt().isBefore(initialOrderCreatedAt),
                 "updatedAt must be on or after createdAt");
     }
+
+    @Test
+    void orderOptimisticLocking_incrementsVersionAndDetectsConcurrentModification() {
+        Buyer buyer = Buyer.reconstitute(
+                UUID.randomUUID(),
+                "Ana Martinez",
+                new Email("ana.concurrency@example.com"),
+                new IdentityDocument("CC", "99887766"),
+                new Address("Cra 15", "Bogota", "Cundinamarca", "Colombia", "110111", null),
+                List.of(),
+                BuyerCommercialStatus.ENABLED,
+                UserStatus.ACTIVE
+        );
+        BuyerEntity buyerEntity = (BuyerEntity) userMapper.toEntity(buyer);
+        em.persist(buyerEntity);
+
+        Product product = new Product(
+                UUID.randomUUID(),
+                "Teclado Mecanico",
+                new ProductVariant("Switch", "Red"),
+                new Money(new BigDecimal("180.00"), USD),
+                ProductStatus.PUBLISHED,
+                ProductType.PHYSICAL
+        );
+        productAdapter.save(product);
+        em.flush();
+        em.clear();
+
+        UUID orderId = UUID.randomUUID();
+        Order order = Order.reconstitute(
+                orderId,
+                buyer,
+                List.of(new OrderItem(product, 1, new Money(new BigDecimal("180.00"), USD))),
+                buyer.getPrimaryAddress(),
+                OrderStatus.PENDING_PAYMENT,
+                LocalDate.now()
+        );
+        orderAdapter.save(order);
+        em.flush();
+        em.clear();
+
+        OrderJpaEntity savedOrder = em.find(OrderJpaEntity.class, orderId);
+        assertEquals(0L, savedOrder.getVersion());
+
+        // Prepare stale copy with version = 0
+        OrderJpaEntity staleOrder = new OrderJpaEntity();
+        staleOrder.setOrderId(orderId);
+        staleOrder.setBuyer(em.find(BuyerEntity.class, buyer.getUserId()));
+        staleOrder.setDeliveryAddress(savedOrder.getDeliveryAddress());
+        staleOrder.setStatus(OrderStatus.CANCELLED);
+        staleOrder.setCreationDate(LocalDate.now());
+        staleOrder.setVersion(0L);
+
+        // First update transitions order to PAID -> version becomes 1
+        Order loadedOrder = orderAdapter.findById(orderId).orElseThrow();
+        loadedOrder.advanceTo(OrderStatus.PAID);
+        orderAdapter.save(loadedOrder);
+        em.flush();
+        em.clear();
+
+        OrderJpaEntity paidOrder = em.find(OrderJpaEntity.class, orderId);
+        assertEquals(1L, paidOrder.getVersion());
+
+        // Concurrent merge with stale version 0 must throw OptimisticLockException
+        assertThrows(OptimisticLockException.class, () -> {
+            em.getEntityManager().merge(staleOrder);
+            em.flush();
+        });
+    }
 }

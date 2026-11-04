@@ -10,10 +10,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Enterprise JWT provider using standard HMAC-SHA256 cryptographic signatures.
+ * Enterprise JWT provider using standard HMAC-SHA256 cryptographic signatures
+ * with in-memory token revocation support for immediate logout invalidation.
  */
 @Component
 public class JwtProvider implements JwtServicePort {
@@ -22,6 +25,7 @@ public class JwtProvider implements JwtServicePort {
     private static final int MIN_SECRET_KEY_BYTES = 32;
     private final byte[] secretKeyBytes;
     private final long expirationSeconds;
+    private final Map<String, Long> revokedTokens = new ConcurrentHashMap<>();
 
     public JwtProvider(
             @Value("${security.jwt.secret:NexusMarketDevOnlyJwtSecretKey2026LocalDevelopment32Bytes}") String secret,
@@ -41,11 +45,12 @@ public class JwtProvider implements JwtServicePort {
     public String generateToken(UUID userId, String email, String role) {
         long now = Instant.now().getEpochSecond();
         long exp = now + expirationSeconds;
+        String jti = UUID.randomUUID().toString();
 
         String headerJson = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
         String payloadJson = String.format(
-                "{\"sub\":\"%s\",\"email\":\"%s\",\"role\":\"%s\",\"iat\":%d,\"exp\":%d}",
-                userId.toString(), escapeJson(email), escapeJson(role), now, exp
+                "{\"jti\":\"%s\",\"sub\":\"%s\",\"email\":\"%s\",\"role\":\"%s\",\"iat\":%d,\"exp\":%d}",
+                jti, userId.toString(), escapeJson(email), escapeJson(role), now, exp
         );
 
         String encodedHeader = base64UrlEncode(headerJson.getBytes(StandardCharsets.UTF_8));
@@ -61,7 +66,11 @@ public class JwtProvider implements JwtServicePort {
         if (token == null || token.isBlank()) {
             return false;
         }
-        String[] parts = token.split("\\.");
+        String trimmed = token.trim();
+        if (isTokenRevoked(trimmed)) {
+            return false;
+        }
+        String[] parts = trimmed.split("\\.");
         if (parts.length != 3) {
             return false;
         }
@@ -79,6 +88,39 @@ public class JwtProvider implements JwtServicePort {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    @Override
+    public void revokeToken(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        String trimmed = token.trim();
+        long now = Instant.now().getEpochSecond();
+        revokedTokens.entrySet().removeIf(entry -> entry.getValue() < now);
+        long exp = now + expirationSeconds;
+        try {
+            String payloadJson = extractPayload(trimmed);
+            exp = extractLongField(payloadJson, "exp");
+        } catch (Exception ignored) {
+        }
+        revokedTokens.put(trimmed, exp);
+    }
+
+    @Override
+    public boolean isTokenRevoked(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        Long exp = revokedTokens.get(token.trim());
+        if (exp == null) {
+            return false;
+        }
+        if (Instant.now().getEpochSecond() > exp) {
+            revokedTokens.remove(token.trim());
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -129,7 +171,14 @@ public class JwtProvider implements JwtServicePort {
     }
 
     private String escapeJson(String s) {
-        return s.replace("\"", "\\\"");
+        if (s == null) {
+            return "";
+        }
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     private String extractStringField(String json, String field) {

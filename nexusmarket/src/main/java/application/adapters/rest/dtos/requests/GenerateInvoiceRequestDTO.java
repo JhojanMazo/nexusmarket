@@ -6,9 +6,15 @@ import java.util.UUID;
 public record GenerateInvoiceRequestDTO(
         UUID orderId,
         BigDecimal taxAmount,
-        String currency
+        String currency,
+        String currencyCode
 ) {
+    public GenerateInvoiceRequestDTO(UUID orderId, BigDecimal taxAmount, String currency) {
+        this(orderId, taxAmount, currency, currency);
+    }
+
+    @Override
     public String currencyCode() {
-        return currency;
+        return currencyCode != null && !currencyCode.isBlank() ? currencyCode : currency;
     }
 }

@@ -1,6 +1,7 @@
 package application.adapters.useCases;
 
 import application.adapters.aspect.Auditable;
+import application.adapters.security.BCryptPasswordServiceAdapter;
 import application.adapters.security.SecurityUserContext;
 import application.adapters.security.dtos.AuthenticatedUserPrincipal;
 import application.domain.enums.AuditSeverity;
@@ -25,6 +26,7 @@ import application.domain.ports.in.BuyerPort;
 import application.domain.ports.out.EventPublisherPort;
 import application.domain.ports.out.InventoryRepositoryPort;
 import application.domain.ports.out.OrderRepositoryPort;
+import application.domain.ports.out.PasswordServicePort;
 import application.domain.ports.out.ProductRepositoryPort;
 import application.domain.ports.out.ReturnRequestRepositoryPort;
 import application.domain.ports.out.ShoppingCartRepositoryPort;
@@ -74,6 +76,7 @@ public class BuyerUseCaseImpl implements BuyerPort {
     private final PrimaryAddressManagementService primaryAddressManagementService;
     private final SecondaryAddressManagementService secondaryAddressManagementService;
     private final EventPublisherPort eventPublisherPort;
+    private final PasswordServicePort passwordServicePort = new BCryptPasswordServiceAdapter();
 
     @Autowired
     public BuyerUseCaseImpl(UserRepositoryPort userRepository,
@@ -155,13 +158,31 @@ public class BuyerUseCaseImpl implements BuyerPort {
     @Transactional
     @Auditable(action = "BUYER_REGISTERED", resource = "Buyer", severity = AuditSeverity.LOW)
     public Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress) {
+        String generatedCompliantPassword = "Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!";
+        return registerBuyer(fullName, email, docType, docNumber, primaryAddress, generatedCompliantPassword);
+    }
+
+    @Override
+    @Transactional
+    @Auditable(action = "BUYER_REGISTERED", resource = "Buyer", severity = AuditSeverity.LOW)
+    public Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress, String rawPassword) {
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
+
+        String effectivePassword;
+        if (rawPassword != null && !rawPassword.isBlank()) {
+            PublicAccessUseCaseImpl.validatePasswordPolicy(rawPassword);
+            effectivePassword = rawPassword;
+        } else {
+            effectivePassword = "Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!";
+        }
+        String passwordHash = passwordServicePort.encode(effectivePassword);
 
         Buyer buyer = Buyer.create(
                 fullName,
                 new Email(email),
                 new IdentityDocument(docType, docNumber),
-                primaryAddress
+                primaryAddress,
+                passwordHash
         );
         User saved = userRepository.save(buyer);
         return (Buyer) saved;
@@ -239,6 +260,7 @@ public class BuyerUseCaseImpl implements BuyerPort {
     @Override
     @Transactional
     public ShoppingCart createCart(UUID buyerId) {
+        assertAuthenticatedBuyerMatches(buyerId);
         User user = userRepository.findById(buyerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comprador", buyerId));
 
@@ -277,6 +299,9 @@ public class BuyerUseCaseImpl implements BuyerPort {
         if (quantity <= 0) {
             throw new IllegalArgumentException("La cantidad debe ser mayor a 0");
         }
+        if (unitPrice != null && unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El precio unitario debe ser mayor a 0");
+        }
         ShoppingCart cart = getCartById(cartId);
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto", productId));
@@ -285,14 +310,11 @@ public class BuyerUseCaseImpl implements BuyerPort {
             throw new BusinessRuleException("Solo se pueden agregar productos con estado PUBLICADO al carrito");
         }
 
-        Currency currency;
         if (currencyCode != null && !currencyCode.isBlank()) {
-            currency = Currency.getInstance(currencyCode.trim().toUpperCase(Locale.ROOT));
-        } else {
-            currency = product.getPrice().currency();
+            Currency.getInstance(currencyCode.trim().toUpperCase(Locale.ROOT));
         }
 
-        BigDecimal priceAmount = unitPrice != null ? unitPrice : product.getPrice().amount();
+        Money authoritativePrice = product.getPrice();
 
         OrderItem existingItem = cart.getItems().stream()
                 .filter(i -> i.product().getProductId().equals(productId))
@@ -302,9 +324,9 @@ public class BuyerUseCaseImpl implements BuyerPort {
         if (existingItem != null) {
             int combinedQuantity = existingItem.quantity() + quantity;
             cart.removeItem(existingItem);
-            cart.addItem(new OrderItem(product, combinedQuantity, new Money(priceAmount, currency)));
+            cart.addItem(new OrderItem(product, combinedQuantity, authoritativePrice));
         } else {
-            OrderItem item = new OrderItem(product, quantity, new Money(priceAmount, currency));
+            OrderItem item = new OrderItem(product, quantity, authoritativePrice);
             cart.addItem(item);
         }
 
@@ -398,8 +420,9 @@ public class BuyerUseCaseImpl implements BuyerPort {
     @Auditable(action = "ORDER_CANCELLED", resource = "Order", severity = AuditSeverity.HIGH)
     public Order cancelOrder(UUID orderId) {
         Order order = getOrderById(orderId);
+        OrderStatus previousStatus = order.getStatus();
         order.cancel();
-        if (inventoryRepository != null) {
+        if (inventoryRepository != null && previousStatus == OrderStatus.PENDING_PAYMENT) {
             for (OrderItem item : order.getItems()) {
                 List<Inventory> inventories = inventoryRepository.findByProductId(item.product().getProductId());
                 for (Inventory inv : inventories) {
@@ -482,18 +505,32 @@ public class BuyerUseCaseImpl implements BuyerPort {
             throw new IllegalStateException("Estado inválido para procesar pago: " + order.getStatus());
         }
 
+        BigDecimal expectedTotal = order.total().amount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El monto de pago debe ser mayor a 0");
+        }
+        if (amount.compareTo(expectedTotal) != 0) {
+            throw new IllegalArgumentException("El monto pagado (" + amount + ") no coincide con el total real de la orden (" + expectedTotal + ")");
+        }
+        if (paymentMethod != null && ("DECLINED".equalsIgnoreCase(paymentMethod.trim())
+                || "FAILED".equalsIgnoreCase(paymentMethod.trim())
+                || "REJECTED".equalsIgnoreCase(paymentMethod.trim()))) {
+            throw new BusinessRuleException("El pago fue rechazado por la pasarela de pagos");
+        }
+
         for (OrderItem item : order.getItems()) {
             if (productTypeDifferentiationService.requiresShipping(item.product()) && inventoryRepository != null) {
                 List<Inventory> productInventories = inventoryRepository.findByProductId(item.product().getProductId());
-                if (!productInventories.isEmpty()) {
-                    Inventory selectedLot = productInventories.stream()
-                            .filter(inv -> criticalStockValidationService.validateStock(inv, item.quantity()))
-                            .findFirst()
-                            .orElseGet(() -> productInventories.get(0));
-                    criticalStockValidationService.assertValidActiveLotAndNonNegativeBalance(selectedLot, item.quantity());
-                    inventoryReservationService.reserve(selectedLot, item.quantity());
-                    inventoryRepository.save(selectedLot);
+                if (productInventories.isEmpty()) {
+                    throw new IllegalStateException("No existen lotes de inventario disponibles para el producto físico: " + item.product().getName());
                 }
+                Inventory selectedLot = productInventories.stream()
+                        .filter(inv -> criticalStockValidationService.validateStock(inv, item.quantity()))
+                        .findFirst()
+                        .orElseGet(() -> productInventories.get(0));
+                criticalStockValidationService.assertValidActiveLotAndNonNegativeBalance(selectedLot, item.quantity());
+                inventoryReservationService.reserve(selectedLot, item.quantity());
+                inventoryRepository.save(selectedLot);
             }
         }
 
@@ -530,7 +567,7 @@ public class BuyerUseCaseImpl implements BuyerPort {
     @Auditable(action = "RETURN_REQUESTED", resource = "ReturnRequest", severity = AuditSeverity.MEDIUM)
     public ReturnRequest requestReturn(UUID orderId, String reason) {
         Order order = getOrderById(orderId);
-        ReturnRequest returnRequest = returnsAdministrationService.initiateReturn(order);
+        ReturnRequest returnRequest = returnsAdministrationService.initiateReturn(order, reason);
         return returnRequestRepository.save(returnRequest);
     }
 

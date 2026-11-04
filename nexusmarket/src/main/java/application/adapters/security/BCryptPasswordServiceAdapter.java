@@ -1,52 +1,58 @@
 package application.adapters.security;
 
 import application.domain.ports.out.PasswordServicePort;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * Enterprise password hashing adapter using salted SHA-256 with constant-time verification.
+ * Enterprise password hashing adapter using standard BCrypt (cost factor 10).
+ * Rejects plaintext comparisons and supports constant-time verification.
  */
 @Component
 public class BCryptPasswordServiceAdapter implements PasswordServicePort {
 
-    private static final String SALT_PREFIX = "$s256$";
-    private final SecureRandom random = new SecureRandom();
+    private static final String LEGACY_SALT_PREFIX = "$s256$";
+    private final BCryptPasswordEncoder bcryptEncoder = new BCryptPasswordEncoder(10);
 
     @Override
     public String encode(String rawPassword) {
-        if (rawPassword == null) {
-            throw new IllegalArgumentException("Raw password cannot be null");
+        if (rawPassword == null || rawPassword.isBlank()) {
+            throw new IllegalArgumentException("Raw password cannot be null or blank");
         }
-        byte[] salt = new byte[16];
-        random.nextBytes(salt);
-        String saltBase64 = Base64.getEncoder().encodeToString(salt);
-        String hash = hashWithSalt(rawPassword, salt);
-        return SALT_PREFIX + saltBase64 + "$" + hash;
+        return bcryptEncoder.encode(rawPassword);
     }
 
     @Override
     public boolean matches(String rawPassword, String encodedPassword) {
-        if (rawPassword == null || encodedPassword == null) {
+        if (rawPassword == null || encodedPassword == null || encodedPassword.isBlank()) {
             return false;
         }
-        if (!encodedPassword.startsWith(SALT_PREFIX)) {
-            // Fallback to direct equality or un-salted hash if legacy
-            return rawPassword.equals(encodedPassword);
+        if (encodedPassword.startsWith("$2a$") || encodedPassword.startsWith("$2b$") || encodedPassword.startsWith("$2y$")) {
+            return bcryptEncoder.matches(rawPassword, encodedPassword);
         }
-        String[] parts = encodedPassword.substring(SALT_PREFIX.length()).split("\\$");
-        if (parts.length != 2) {
-            return false;
+        if (encodedPassword.startsWith(LEGACY_SALT_PREFIX)) {
+            String[] parts = encodedPassword.substring(LEGACY_SALT_PREFIX.length()).split("\\$");
+            if (parts.length != 2) {
+                return false;
+            }
+            try {
+                byte[] salt = Base64.getDecoder().decode(parts[0]);
+                String expectedHash = parts[1];
+                String actualHash = hashWithSalt(rawPassword, salt);
+                return MessageDigest.isEqual(
+                        expectedHash.getBytes(StandardCharsets.UTF_8),
+                        actualHash.getBytes(StandardCharsets.UTF_8)
+                );
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
         }
-        byte[] salt = Base64.getDecoder().decode(parts[0]);
-        String expectedHash = parts[1];
-        String actualHash = hashWithSalt(rawPassword, salt);
-        return MessageDigest.isEqual(expectedHash.getBytes(StandardCharsets.UTF_8), actualHash.getBytes(StandardCharsets.UTF_8));
+        return false;
     }
 
     private String hashWithSalt(String rawPassword, byte[] salt) {

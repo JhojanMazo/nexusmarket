@@ -482,7 +482,33 @@ export async function renderLoginView(container) {
 
         <p class="auth-switch">
           ¿Aún no tiene cuenta de comprador? <a href="#/register">Regístrese aquí</a>
+          &bull;
+          <button type="button" id="toggle-recovery-btn" class="btn btn-outline btn-xs">¿Olvidó su contraseña?</button>
         </p>
+
+        <div id="password-recovery-box" class="card-panel hidden" style="margin-top: 1rem;">
+          <h3>Recuperación de Contraseña</h3>
+          <form id="recovery-request-form" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label for="recovery-email">Correo registrado *</label>
+              <input type="email" id="recovery-email" name="email" class="form-control" placeholder="usuario@empresa.com" required />
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm">Solicitar Token de Recuperación</button>
+          </form>
+          <form id="recovery-reset-form">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="recovery-token">Token de Recuperación *</label>
+                <input type="text" id="recovery-token" name="token" class="form-control" placeholder="UUID de recuperación" required />
+              </div>
+              <div class="form-group">
+                <label for="recovery-new-password">Nueva Contraseña *</label>
+                <input type="password" id="recovery-new-password" name="newPassword" class="form-control" placeholder="Mín. 8 caracteres, mayús., minús. y número" required />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Restablecer Contraseña</button>
+          </form>
+        </div>
       </div>
     </div>
   `;
@@ -490,6 +516,36 @@ export async function renderLoginView(container) {
   const form = container.querySelector('#login-form');
   const errorBox = container.querySelector('#login-error-msg');
   const submitBtn = container.querySelector('#login-submit-btn');
+  const recoveryBox = container.querySelector('#password-recovery-box');
+
+  container.querySelector('#toggle-recovery-btn')?.addEventListener('click', () => {
+    recoveryBox?.classList.toggle('hidden');
+  });
+
+  container.querySelector('#recovery-request-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const recEmail = e.target.email.value.trim();
+    if (!recEmail) return;
+    try {
+      const res = await authApi.requestPasswordRecovery(recEmail);
+      showToast(res.message || 'Instrucciones de recuperación enviadas.', 'info');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  container.querySelector('#recovery-reset-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = e.target.token.value.trim();
+    const newPassword = e.target.newPassword.value;
+    try {
+      const res = await authApi.resetPassword(token, newPassword);
+      showToast(res.message || 'Contraseña actualizada exitosamente.', 'success');
+      recoveryBox?.classList.add('hidden');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
 
   container.querySelectorAll('.js-demo-login').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -580,6 +636,16 @@ export async function renderRegisterView(container) {
               <input type="text" id="reg-doc-number" name="documentNumber" class="form-control"
                 placeholder="Ej. 1020304050" required />
             </div>
+            <div class="form-group">
+              <label for="reg-password">Contraseña *</label>
+              <input type="password" id="reg-password" name="password" class="form-control"
+                placeholder="Mín. 8 caracteres, mayús., minús. y número" required autocomplete="new-password" />
+            </div>
+            <div class="form-group">
+              <label for="reg-password-confirm">Confirmar Contraseña *</label>
+              <input type="password" id="reg-password-confirm" name="confirmPassword" class="form-control"
+                placeholder="Repita su contraseña" required autocomplete="new-password" />
+            </div>
           </div>
 
           <fieldset class="address-fieldset">
@@ -640,9 +706,13 @@ export async function renderRegisterView(container) {
     e.preventDefault();
     errorBox.classList.add('hidden');
 
+    const password = form.password?.value || '';
+    const confirmPassword = form.confirmPassword?.value || '';
+
     const payload = {
       fullName: form.fullName.value.trim(),
       email: form.email.value.trim(),
+      password,
       documentType: form.documentType.value,
       documentNumber: form.documentNumber.value.trim(),
       primaryAddress: {
@@ -658,6 +728,7 @@ export async function renderRegisterView(container) {
     if (
       !payload.fullName ||
       !payload.email ||
+      !payload.password ||
       !payload.documentNumber ||
       !payload.primaryAddress.street ||
       !payload.primaryAddress.city ||
@@ -670,12 +741,24 @@ export async function renderRegisterView(container) {
       return;
     }
 
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      errorBox.textContent = 'La contraseña debe tener al menos 8 caracteres e incluir mayúsculas, minúsculas y números.';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      errorBox.textContent = 'Las contraseñas ingresadas no coinciden.';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+
     submitBtn.disabled = true;
     submitBtn.textContent = 'Registrando comprador...';
 
     try {
       await authApi.registerBuyer(payload);
-      const loginResp = await authApi.login(payload.email, 'NexusMarket2026!');
+      const loginResp = await authApi.login(payload.email, payload.password);
       sessionStore.setSession(loginResp);
       showToast('Cuenta creada y sesión iniciada correctamente.', 'success');
       window.location.hash = '#/catalog';

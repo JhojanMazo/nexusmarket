@@ -1,6 +1,7 @@
 package application.adapters.useCases;
 
 import application.adapters.aspect.Auditable;
+import application.adapters.security.BCryptPasswordServiceAdapter;
 import application.adapters.security.SecurityUserContext;
 import application.adapters.security.dtos.AuthenticatedUserPrincipal;
 import application.domain.enums.AuditSeverity;
@@ -17,6 +18,7 @@ import application.domain.models.Warehouse;
 import application.domain.ports.in.SellerPort;
 import application.domain.ports.out.InventoryRepositoryPort;
 import application.domain.ports.out.OrderRepositoryPort;
+import application.domain.ports.out.PasswordServicePort;
 import application.domain.ports.out.ProductRepositoryPort;
 import application.domain.ports.out.UserRepositoryPort;
 import application.domain.ports.out.WarehouseRepositoryPort;
@@ -53,6 +55,7 @@ public class SellerUseCaseImpl implements SellerPort {
     private final InventoryRepositoryPort inventoryRepository;
     private final UniqueIdentityValidationService uniqueIdentityValidationService;
     private final ValidateSellerOwnershipService validateSellerOwnershipService;
+    private final PasswordServicePort passwordServicePort = new BCryptPasswordServiceAdapter();
 
     @Autowired
     public SellerUseCaseImpl(UserRepositoryPort userRepository,
@@ -82,6 +85,11 @@ public class SellerUseCaseImpl implements SellerPort {
     @Override
     @Transactional
     public Seller registerSeller(UUID adminUserId, String fullName, String email, String docType, String docNumber, LocalDate onboardingDate) {
+        SecurityUserContext.get().ifPresent(principal -> {
+            if (!"ADMINISTRATOR".equalsIgnoreCase(principal.role())) {
+                throw new UnauthorizedOperationException("Solo un administrador puede registrar vendedores");
+            }
+        });
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
 
         Seller seller = Seller.create(
@@ -91,6 +99,7 @@ public class SellerUseCaseImpl implements SellerPort {
                 new IdentityDocument(docType, docNumber),
                 onboardingDate != null ? onboardingDate : LocalDate.now()
         );
+        seller.setPasswordHash(passwordServicePort.encode("Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!"));
         User saved = userRepository.save(seller);
         return (Seller) saved;
     }
@@ -98,6 +107,7 @@ public class SellerUseCaseImpl implements SellerPort {
     @Override
     @Transactional(readOnly = true)
     public Seller getSellerProfile(UUID sellerId) {
+        assertAuthenticatedSellerCanOperate(sellerId);
         User user = userRepository.findById(sellerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Vendedor", sellerId));
         if (!(user instanceof Seller seller)) {
@@ -169,27 +179,59 @@ public class SellerUseCaseImpl implements SellerPort {
     @Override
     @Transactional(readOnly = true)
     public Product getProductById(UUID productId) {
-        return productRepository.findById(productId)
+        Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Producto", productId));
+        if (product.getSellerId() != null) {
+            assertAuthenticatedSellerCanOperate(product.getSellerId());
+        }
+        return product;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Product> getAllProducts() {
+        AuthenticatedUserPrincipal principal = SecurityUserContext.get().orElse(null);
+        if (principal != null && "SELLER".equalsIgnoreCase(principal.role())) {
+            return productRepository.findAll().stream()
+                    .filter(p -> principal.userId().equals(p.getSellerId()))
+                    .toList();
+        }
         return productRepository.findAll();
     }
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "seller_products", key = "#page + '-' + #size")
+    @Cacheable(value = "seller_products", key = "#page + '-' + #size", condition = "T(application.adapters.security.SecurityUserContext).get().isEmpty()")
     public PageResult<Product> getAllProducts(int page, int size) {
+        AuthenticatedUserPrincipal principal = SecurityUserContext.get().orElse(null);
+        if (principal != null && "SELLER".equalsIgnoreCase(principal.role())) {
+            List<Product> owned = productRepository.findAll().stream()
+                    .filter(p -> principal.userId().equals(p.getSellerId()))
+                    .sorted(java.util.Comparator.comparing(p -> p.getName().toLowerCase(Locale.ROOT)))
+                    .toList();
+            return PageResult.of(owned, page, size);
+        }
         return productRepository.findAll(page, size, "name", "ASC");
     }
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "seller_products", key = "#page + '-' + #size + '-' + #sortBy + '-' + #direction")
+    @Cacheable(value = "seller_products", key = "#page + '-' + #size + '-' + #sortBy + '-' + #direction", condition = "T(application.adapters.security.SecurityUserContext).get().isEmpty()")
     public PageResult<Product> getAllProducts(int page, int size, String sortBy, String direction) {
+        AuthenticatedUserPrincipal principal = SecurityUserContext.get().orElse(null);
+        if (principal != null && "SELLER".equalsIgnoreCase(principal.role())) {
+            java.util.Comparator<Product> comparator = "price".equalsIgnoreCase(sortBy)
+                    ? java.util.Comparator.comparing(p -> p.getPrice().amount())
+                    : java.util.Comparator.comparing(p -> p.getName().toLowerCase(Locale.ROOT));
+            if ("DESC".equalsIgnoreCase(direction)) {
+                comparator = comparator.reversed();
+            }
+            List<Product> owned = productRepository.findAll().stream()
+                    .filter(p -> principal.userId().equals(p.getSellerId()))
+                    .sorted(comparator)
+                    .toList();
+            return PageResult.of(owned, page, size);
+        }
         return productRepository.findAll(page, size, sortBy, direction);
     }
 
@@ -215,7 +257,9 @@ public class SellerUseCaseImpl implements SellerPort {
     })
     @Auditable(action = "PRODUCT_STATUS_UPDATED", resource = "Product", severity = AuditSeverity.MEDIUM)
     public Product updateProductStatus(UUID sellerId, UUID productId, ProductStatus status) {
-        Product existing = getProductById(productId);
+        assertAuthenticatedSellerCanOperate(sellerId);
+        Product existing = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto", productId));
         if (sellerId != null && existing.getSellerId() != null) {
             validateSellerOwnershipService.validateOwnership(sellerId, existing.getSellerId());
         }
@@ -245,7 +289,9 @@ public class SellerUseCaseImpl implements SellerPort {
     })
     @Auditable(action = "PRODUCT_PRICE_UPDATED", resource = "Product", severity = AuditSeverity.HIGH)
     public Product updateProductPrice(UUID sellerId, UUID productId, BigDecimal price, String currencyCode) {
-        Product existing = getProductById(productId);
+        assertAuthenticatedSellerCanOperate(sellerId);
+        Product existing = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto", productId));
         if (sellerId != null && existing.getSellerId() != null) {
             validateSellerOwnershipService.validateOwnership(sellerId, existing.getSellerId());
         }

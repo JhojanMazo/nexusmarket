@@ -260,4 +260,45 @@ class BuyerUseCaseImplTest {
         assertThrows(UnauthorizedOperationException.class,
                 () -> buyerUseCase.addAdditionalAddress(intruderId, buyerId, sec1));
     }
+
+    @Test
+    void addItemToCart_IgnoresClientTamperedPrice_UsesAuthoritativeCatalogPrice() {
+        ShoppingCart cart = new ShoppingCart(cartId, buyer);
+        Product product = new Product(productId, "Laptop Pro", new ProductVariant("RAM", "32GB"),
+                new Money(BigDecimal.valueOf(5000), Currency.getInstance("USD")), ProductStatus.PUBLISHED, ProductType.PHYSICAL);
+
+        when(cartRepository.findById(cartId)).thenReturn(Optional.of(cart));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(cartRepository.save(any(ShoppingCart.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Client attempts to send price = 1 USD instead of 5000 USD
+        ShoppingCart updated = buyerUseCase.addItem(cartId, productId, 2, BigDecimal.ONE, "USD");
+        assertEquals(0, BigDecimal.valueOf(5000).compareTo(updated.getItems().get(0).unitPrice().amount()));
+        assertEquals(0, BigDecimal.valueOf(10000).compareTo(updated.subtotal().amount()));
+    }
+
+    @Test
+    void processPayment_RejectsMismatchedAmountAndDeclinedGateway() {
+        ShoppingCart cart = new ShoppingCart(cartId, buyer);
+        Product product = new Product(productId, "Laptop", new ProductVariant("RAM", "16GB"),
+                new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD")), ProductStatus.PUBLISHED, ProductType.PHYSICAL);
+        cart.addItem(new OrderItem(product, 1, new Money(BigDecimal.valueOf(1000), Currency.getInstance("USD"))));
+        Order order = Order.createFromCart(cart, address);
+
+        when(orderRepository.findById(order.getOrderId())).thenReturn(Optional.of(order));
+
+        // Mismatched amount (e.g. 500 instead of 1000) must throw IllegalArgumentException
+        assertThrows(IllegalArgumentException.class,
+                () -> buyerUseCase.processPayment(order.getOrderId(), BigDecimal.valueOf(500), "CREDIT_CARD"));
+
+        // Declined payment method simulation must throw BusinessRuleException without deducting stock
+        assertThrows(application.domain.exceptions.BusinessRuleException.class,
+                () -> buyerUseCase.processPayment(order.getOrderId(), BigDecimal.valueOf(1000), "DECLINED"));
+        assertEquals(OrderStatus.CART, order.getStatus());
+
+        // Cancelling an unpaid CART order does not touch inventory
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        buyerUseCase.cancelOrder(order.getOrderId());
+        assertEquals(OrderStatus.CANCELLED, order.getStatus());
+    }
 }

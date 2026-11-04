@@ -145,6 +145,7 @@ class FullStackMarketplaceE2ETest {
     @Autowired private ApplicationEventPublisher applicationEventPublisher;
 
     private MockMvc mockMvc;
+    private PublicAccessUseCaseImpl publicAccessUseCase;
 
     @BeforeEach
     void setUpFullStackContext() {
@@ -161,7 +162,7 @@ class FullStackMarketplaceE2ETest {
         UniqueIdentityValidationService uniqueIdentityService = new UniqueIdentityValidationService();
         SpringEventPublisherAdapter eventPublisher = new SpringEventPublisherAdapter(applicationEventPublisher);
 
-        PublicAccessUseCaseImpl publicAccessUseCase = new PublicAccessUseCaseImpl(
+        this.publicAccessUseCase = new PublicAccessUseCaseImpl(
                 userRepository,
                 productRepository,
                 inventoryRepository,
@@ -680,6 +681,139 @@ class FullStackMarketplaceE2ETest {
                 .andExpect(jsonPath("$.orderId").value(orderId))
                 .andExpect(jsonPath("$.status").value("DELIVERED_COMPLETED"))
                 .andExpect(jsonPath("$.items[0].quantity").value(2));
+
+        // =========================================================================
+        // ESCENARIO 11: Registro de nuevo vendedor por Administrador, inicio de sesión
+        //               y protección contra acceso horizontal (IDOR) entre vendedores
+        // =========================================================================
+        String adminId = extractJsonField(adminLogin.getResponse().getContentAsString(), "userId");
+        MvcResult newSellerRegRes = mockMvc.perform(post("/api/admin/users/seller")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .param("adminUserId", adminId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "fullName": "Inversiones Digitales Andinas",
+                                  "email": "seller2@nexusmarket.com",
+                                  "documentType": "NIT",
+                                  "documentNumber": "901555777-9",
+                                  "companyName": "Inversiones Digitales Andinas S.A.S.",
+                                  "bankAccountNumber": "9988776655",
+                                  "initialPassword": "Seller2Password!"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").value("seller2@nexusmarket.com"))
+                .andReturn();
+        String seller2Id = extractJsonField(newSellerRegRes.getResponse().getContentAsString(), "userId");
+
+        // Seller 2 establece su contraseña mediante el flujo seguro de recuperación/activación
+        mockMvc.perform(post("/api/auth/password-recovery/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"seller2@nexusmarket.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").exists());
+        String recoveryToken = publicAccessUseCase.getLatestRecoveryTokenForEmail("seller2@nexusmarket.com");
+        org.junit.jupiter.api.Assertions.assertNotNull(recoveryToken);
+
+        mockMvc.perform(post("/api/auth/password-recovery/reset")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"token\":\"" + recoveryToken + "\",\"newPassword\":\"Seller2Password1!\"}"))
+                .andExpect(status().isOk());
+
+        MvcResult seller2LoginRes = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"seller2@nexusmarket.com\",\"password\":\"Seller2Password1!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("SELLER"))
+                .andReturn();
+        String seller2Token = extractJsonField(seller2LoginRes.getResponse().getContentAsString(), "token");
+
+        // Seller 2 intenta modificar el precio del producto de Seller 1 -> 403 Forbidden (Anti-IDOR)
+        mockMvc.perform(patch("/api/sellers/products/{productId}/price", newProdId)
+                        .header("Authorization", "Bearer " + seller2Token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"price\": 1000, \"currency\": \"COP\"}"))
+                .andExpect(status().isForbidden());
+
+        // Seller 2 intenta consultar las órdenes o perfil de Seller 1 -> 403 Forbidden
+        mockMvc.perform(get("/api/sellers/{sellerId}/orders", sellerId)
+                        .header("Authorization", "Bearer " + seller2Token))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/sellers/{sellerId}", sellerId)
+                        .header("Authorization", "Bearer " + seller2Token))
+                .andExpect(status().isForbidden());
+
+        // Seller 1 consulta sus propias órdenes y visualiza la orden que incluye su MacBook Pro
+        mockMvc.perform(get("/api/sellers/{sellerId}/orders", sellerId)
+                        .header("Authorization", "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId));
+
+        // =========================================================================
+        // ESCENARIO 12: Procesamiento de reembolso por Administrador/Supervisor y
+        //               reintegración de inventario en base de datos
+        // =========================================================================
+        mockMvc.perform(post("/api/admin/refunds")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "returnRequestId": "%s",
+                                  "amount": 29000000,
+                                  "currencyCode": "COP"
+                                }
+                                """.formatted(returnRequestId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(29000000));
+
+        // Verificar que las 2 unidades devueltas regresaron al stock disponible (48 + 2 = 50)
+        mockMvc.perform(get("/api/auth/catalog/{id}/stock", macbookId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.availableQuantity").value(50));
+
+        // =========================================================================
+        // ESCENARIO 13: Renovación de JWT, recuperación de contraseña y revocación en logout
+        // =========================================================================
+        MvcResult refreshRes = mockMvc.perform(post("/api/auth/refresh")
+                        .header("Authorization", "Bearer " + seller2Token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andReturn();
+        String refreshedSeller2Token = extractJsonField(refreshRes.getResponse().getContentAsString(), "token");
+
+        // El token anterior de seller2 queda revocado tras refresh
+        mockMvc.perform(get("/api/sellers/{sellerId}", seller2Id)
+                        .header("Authorization", "Bearer " + seller2Token))
+                .andExpect(status().isUnauthorized());
+
+        // El nuevo token funciona y luego se revoca al cerrar sesión
+        mockMvc.perform(get("/api/sellers/{sellerId}", seller2Id)
+                        .header("Authorization", "Bearer " + refreshedSeller2Token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .header("Authorization", "Bearer " + refreshedSeller2Token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/sellers/{sellerId}", seller2Id)
+                        .header("Authorization", "Bearer " + refreshedSeller2Token))
+                .andExpect(status().isUnauthorized());
+
+        // =========================================================================
+        // ESCENARIO 14: Verificación directa en repositorios de base de datos
+        // =========================================================================
+        var persistedOrder = orderRepository.findById(java.util.UUID.fromString(orderId)).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(application.domain.enums.OrderStatus.DELIVERED_COMPLETED, persistedOrder.getStatus());
+
+        var persistedReturn = returnRequestRepository.findById(java.util.UUID.fromString(returnRequestId)).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(application.domain.models.ReturnRequest.ReturnRequestStatus.COMPLETED, persistedReturn.getStatus());
+        org.junit.jupiter.api.Assertions.assertEquals("Empaque con sello abierto", persistedReturn.getReason());
+
+        var macbookInventories = inventoryRepository.findByProductId(java.util.UUID.fromString(macbookId));
+        org.junit.jupiter.api.Assertions.assertEquals(50, macbookInventories.get(0).getAvailableQuantity());
+        org.junit.jupiter.api.Assertions.assertEquals(0, macbookInventories.get(0).getReservedQuantity());
     }
 
     private String extractJsonField(String json, String fieldName) {

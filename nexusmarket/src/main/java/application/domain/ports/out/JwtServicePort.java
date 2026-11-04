@@ -11,4 +11,9 @@ public interface JwtServicePort {
     UUID extractUserId(String token);
     String extractEmail(String token);
     String extractRole(String token);
+    default void revokeToken(String token) {
+    }
+    default boolean isTokenRevoked(String token) {
+        return false;
+    }
 }

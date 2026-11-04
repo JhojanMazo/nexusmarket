@@ -71,7 +71,10 @@ public class AdministrativeReportsConsolidationService {
         BigDecimal totalRevenue = BigDecimal.ZERO;
         if (orders != null) {
             for (Order o : orders) {
-                if (o.getItems() != null && !o.getItems().isEmpty()) {
+                if (o.getStatus() != application.domain.enums.OrderStatus.CANCELLED
+                        && o.getStatus() != application.domain.enums.OrderStatus.CART
+                        && o.getItems() != null
+                        && !o.getItems().isEmpty()) {
                     totalRevenue = totalRevenue.add(o.total().amount());
                 }
             }

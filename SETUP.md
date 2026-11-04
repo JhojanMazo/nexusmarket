@@ -96,14 +96,14 @@ Una vez iniciado, el sistema estará disponible en:
 La suite de pruebas utiliza **H2 en memoria**, mocks de infraestructura y el runner nativo de Node.js, por lo que se ejecuta al 100% sin requerir contenedores activos:
 
 ```bash
-# 1. Ejecutar las 185 pruebas de Backend + Integración + E2E y verificar el Fat JAR ejecutable
+# 1. Ejecutar las 204 pruebas de Backend + Integración + E2E y verificar el Fat JAR ejecutable
 ./mvnw clean verify
 
 # 2. Ejecutar en modo offline (usando la caché local ~/.m2)
 ./mvnw -o clean verify
 
-# 3. Ejecutar las 4 suites automatizadas del Frontend Web (node --test)
-cd frontend && npm test
+# 3. Sincronizar recursos y ejecutar las 5 suites automatizadas del Frontend Web (node --test)
+cd frontend && npm run sync && npm test
 ```
 
 ---

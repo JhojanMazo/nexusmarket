@@ -1,12 +1,15 @@
 package application.adapters.useCases;
 
 import application.adapters.aspect.Auditable;
+import application.adapters.security.SecurityUserContext;
+import application.adapters.security.dtos.AuthenticatedUserPrincipal;
 import application.domain.enums.AuditSeverity;
 import application.domain.enums.InventoryMovementType;
 import application.domain.enums.InventoryStatus;
 import application.domain.enums.OrderStatus;
 import application.domain.enums.UserRole;
 import application.domain.exceptions.ResourceNotFoundException;
+import application.domain.exceptions.UnauthorizedOperationException;
 import application.domain.models.Inventory;
 import application.domain.models.InventoryMovement;
 import application.domain.models.Order;
@@ -79,10 +82,20 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
     @Transactional
     @Auditable(action = "ORDER_DISPATCHED", resource = "Shipment", severity = AuditSeverity.MEDIUM)
     public Shipment dispatchOrder(UUID orderId, UUID logisticsOperatorId) {
+        AuthenticatedUserPrincipal principal = SecurityUserContext.get().orElse(null);
+        UUID effectiveOperatorId = logisticsOperatorId;
+        if (principal != null && "LOGISTICS_OPERATOR".equalsIgnoreCase(principal.role())) {
+            if (effectiveOperatorId == null) {
+                effectiveOperatorId = principal.userId();
+            } else if (!principal.userId().equals(effectiveOperatorId)) {
+                throw new UnauthorizedOperationException("No está autorizado para despachar órdenes a nombre de otro operador logístico");
+            }
+        }
+        final UUID resolvedOperatorId = effectiveOperatorId;
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden", orderId));
-        User operator = userRepository.findById(logisticsOperatorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Operador Logístico", logisticsOperatorId));
+        User operator = userRepository.findById(resolvedOperatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Operador Logístico", resolvedOperatorId));
         if (operator.getRole() != UserRole.LOGISTICS_OPERATOR) {
             throw new IllegalArgumentException("El usuario debe tener rol LOGISTICS_OPERATOR (FR-021)");
         }
@@ -100,6 +113,23 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
                 .orElseThrow(() -> new ResourceNotFoundException("Envío", shipmentId));
         shipment.confirmDelivery();
         shipment.getOrder().advanceTo(OrderStatus.DELIVERED_COMPLETED);
+        if (inventoryRepository != null && shipment.getOrder().getItems() != null) {
+            for (var item : shipment.getOrder().getItems()) {
+                if (item.product() != null && item.product().requiresShipping()) {
+                    List<Inventory> lots = inventoryRepository.findByProductId(item.product().getProductId());
+                    for (Inventory inv : lots) {
+                        if (inv.getReservedQuantity() >= item.quantity()) {
+                            inv.confirmSaleOutbound(item.quantity());
+                            inventoryRepository.save(inv);
+                            if (inventoryMovementRepository != null && !inv.getMovements().isEmpty()) {
+                                inventoryMovementRepository.save(inv.getMovements().get(inv.getMovements().size() - 1));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         orderRepository.save(shipment.getOrder());
         return shipmentRepository.save(shipment);
     }
@@ -170,14 +200,25 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
             type = InventoryMovementType.ADJUSTMENT;
         }
         int validQuantity = quantity != 0 ? quantity : 1;
-        return new InventoryMovement(
+        String effectiveReason = reason != null ? reason : "Manual logistics adjustment";
+        if (inventoryRepository != null && inventoryMovementRepository != null && inventoryId != null) {
+            var existingInv = inventoryRepository.findById(inventoryId);
+            if (existingInv.isPresent()) {
+                return registerInventoryMovement(inventoryId, validQuantity, type, effectiveReason);
+            }
+        }
+        InventoryMovement movement = new InventoryMovement(
                 UUID.randomUUID(),
                 inventoryId != null ? inventoryId : UUID.randomUUID(),
                 type,
                 validQuantity,
                 Instant.now(),
-                reason != null ? reason : "Manual logistics adjustment"
+                effectiveReason
         );
+        if (inventoryMovementRepository != null) {
+            return inventoryMovementRepository.save(movement);
+        }
+        return movement;
     }
 
     @Override
@@ -197,7 +238,7 @@ public class LogisticsOperatorUseCaseImpl implements LogisticsOperatorPort {
         List<Inventory> list = inventoryRepository.findByProductId(productId);
         if (!list.isEmpty()) {
             Inventory inv = list.get(0);
-            inv.registerEntry(quantity, "Release inventory");
+            inv.releaseReservedStock(quantity, "Release inventory");
             inventoryRepository.save(inv);
         }
     }

@@ -223,6 +223,7 @@ export async function renderSupervisorDashboardView(container) {
                 <tr>
                   <th>ID Solicitud</th>
                   <th>ID Orden</th>
+                  <th>Motivo</th>
                   <th>Estado</th>
                   <th>Decisiones de Supervisión</th>
                 </tr>
@@ -230,10 +231,14 @@ export async function renderSupervisorDashboardView(container) {
               <tbody>
                 ${returnsList
                   .map(
-                    (ret) => `
+                    (ret) => {
+                      const matchingOrder = (ordersList || []).find((o) => o.orderId === ret.orderId);
+                      const refundAmount = matchingOrder?.total ?? 10000;
+                      return `
                   <tr>
                     <td><code>${escapeHtml(ret.requestId)}</code></td>
                     <td><code>${escapeHtml(ret.orderId)}</code></td>
+                    <td>${escapeHtml(ret.reason || 'Solicitud de devolución')}</td>
                     <td><span class="badge badge-status-published">${escapeHtml(ret.status)}</span></td>
                     <td>
                       <div class="inline-actions">
@@ -247,13 +252,14 @@ export async function renderSupervisorDashboardView(container) {
                         }
                         ${
                           ret.status === 'APPROVED'
-                            ? `<button type="button" class="btn btn-secondary btn-xs js-sup-refund-ret" data-id="${escapeHtml(ret.requestId)}">Procesar Reembolso</button>`
+                            ? `<button type="button" class="btn btn-secondary btn-xs js-sup-refund-ret" data-id="${escapeHtml(ret.requestId)}" data-amount="${escapeHtml(refundAmount)}">Procesar Reembolso</button>`
                             : ''
                         }
                       </div>
                     </td>
                   </tr>
-                `
+                `;
+                    }
                   )
                   .join('')}
               </tbody>
@@ -355,7 +361,8 @@ export async function renderSupervisorDashboardView(container) {
       container.querySelectorAll('.js-sup-refund-ret').forEach((btn) => {
         btn.addEventListener('click', async () => {
           try {
-            await supervisorApi.processRefund(btn.dataset.id, 100000);
+            const refundAmt = Number(btn.dataset.amount) || 10000;
+            await supervisorApi.processRefund(btn.dataset.id, refundAmt);
             showToast('Reembolso procesado exitosamente.', 'success');
             await loadSupervisor();
           } catch (err) {

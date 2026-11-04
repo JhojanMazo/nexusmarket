@@ -15,27 +15,38 @@ public class ReturnRequest {
 
     private final UUID requestId;
     private final Order order;
+    private final String reason;
     private ReturnRequestStatus status;
 
-    private ReturnRequest(UUID requestId, Order order) {
+    private ReturnRequest(UUID requestId, Order order, String reason) {
         this.requestId = Objects.requireNonNull(requestId);
         this.order = Objects.requireNonNull(order);
+        this.reason = (reason != null && !reason.isBlank()) ? reason.trim() : "Customer requested return";
         this.status = ReturnRequestStatus.REQUESTED;
     }
 
     public static ReturnRequest create(Order order) {
+        return create(order, "Customer requested return");
+    }
+
+    public static ReturnRequest create(Order order, String reason) {
         Objects.requireNonNull(order);
-        return new ReturnRequest(UUID.randomUUID(), order);
+        return new ReturnRequest(UUID.randomUUID(), order, reason);
     }
 
     public static ReturnRequest reconstitute(UUID requestId, Order order, ReturnRequestStatus status) {
-        ReturnRequest request = new ReturnRequest(requestId, order);
+        return reconstitute(requestId, order, status, "Customer requested return");
+    }
+
+    public static ReturnRequest reconstitute(UUID requestId, Order order, ReturnRequestStatus status, String reason) {
+        ReturnRequest request = new ReturnRequest(requestId, order, reason);
         request.status = Objects.requireNonNull(status);
         return request;
     }
 
     public UUID getRequestId() { return requestId; }
     public Order getOrder() { return order; }
+    public String getReason() { return reason; }
     public ReturnRequestStatus getStatus() { return status; }
 
     public void approve() {

@@ -14,6 +14,9 @@ import java.util.UUID;
 
 public interface BuyerPort {
     Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress);
+    default Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress, String rawPassword) {
+        return registerBuyer(fullName, email, docType, docNumber, primaryAddress);
+    }
     Buyer getBuyerProfile(UUID buyerId);
 
     Buyer addAdditionalAddress(UUID buyerId, Address address);

@@ -71,7 +71,7 @@ services:
       SECURITY_JWT_EXPIRATION_SECONDS: "${SECURITY_JWT_EXPIRATION_SECONDS:-86400}"
       NEXUSMARKET_ORDERS_TTL_MINUTES: "${NEXUSMARKET_ORDERS_TTL_MINUTES:-30}"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

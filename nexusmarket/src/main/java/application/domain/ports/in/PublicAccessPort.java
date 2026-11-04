@@ -13,6 +13,14 @@ import java.util.UUID;
 public interface PublicAccessPort {
     AuthenticationResult authenticate(String email, String password);
     void logout(String token);
+    default AuthenticationResult refreshToken(String token) {
+        throw new UnsupportedOperationException("Refresh token operation not supported");
+    }
+    default void requestPasswordRecovery(String email) {
+    }
+    default void resetPassword(String recoveryToken, String newPassword) {
+        throw new UnsupportedOperationException("Password reset operation not supported");
+    }
     Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress);
     default Buyer registerBuyer(String fullName, String email, String docType, String docNumber, Address primaryAddress, String rawPassword) {
         return registerBuyer(fullName, email, docType, docNumber, primaryAddress);

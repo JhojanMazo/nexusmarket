@@ -2,6 +2,7 @@ package application.domain.ports.in;
 
 import application.domain.enums.ApprovalDecision;
 import application.domain.models.AdministrativeReport;
+import application.domain.models.AuditLog;
 import application.domain.models.Inventory;
 import application.domain.models.Operation;
 import application.domain.models.Order;
@@ -23,6 +24,9 @@ public interface SupervisorPort {
     Order getOrderById(UUID orderId);
     List<Order> getAllOrders();
     List<Operation> getAuditOperations();
+    default List<AuditLog> getAuditLogs() {
+        return List.of();
+    }
 
     List<Warehouse> getAllWarehouses();
     List<Inventory> getAllInventories();

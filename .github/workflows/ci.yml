@@ -27,8 +27,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Execute Frontend Automated Test Suite
-        run: cd frontend && npm test
+      - name: Execute Frontend Automated Test Suite & Sync Static Assets
+        run: cd frontend && npm run sync && npm test
 
       - name: Make Maven Wrapper Executable
         run: chmod +x nexusmarket/mvnw

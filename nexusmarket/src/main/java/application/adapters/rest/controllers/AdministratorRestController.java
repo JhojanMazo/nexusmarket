@@ -9,6 +9,7 @@ import application.adapters.rest.dtos.requests.UpdateBuyerCommercialStatusReques
 import application.adapters.rest.dtos.requests.UpdateUserStatusRequestDTO;
 import application.adapters.rest.dtos.requests.UpdateWarehouseRequestDTO;
 import application.adapters.rest.dtos.responses.AdministrativeReportResponseDTO;
+import application.adapters.rest.dtos.responses.AuditLogPageResponseDTO;
 import application.adapters.rest.dtos.responses.BuyerResponseDTO;
 import application.adapters.rest.dtos.responses.InvoiceResponseDTO;
 import application.adapters.rest.dtos.responses.OperationResponseDTO;
@@ -20,6 +21,7 @@ import application.adapters.rest.dtos.responses.ReturnRequestResponseDTO;
 import application.adapters.rest.dtos.responses.SellerResponseDTO;
 import application.adapters.rest.dtos.responses.UserResponseDTO;
 import application.adapters.rest.dtos.responses.WarehouseResponseDTO;
+import application.adapters.rest.mappers.AuditLogRestMapper;
 import application.adapters.rest.mappers.InvoiceRestMapper;
 import application.adapters.rest.mappers.OperationRestMapper;
 import application.adapters.rest.mappers.OrderRestMapper;
@@ -336,5 +338,14 @@ public class AdministratorRestController {
     public ResponseEntity<OperationResponseDTO> getOperationById(@PathVariable("operationId") UUID operationId) {
         Operation operation = adminPort.getOperationById(operationId);
         return ResponseEntity.ok(operationRestMapper.toResponse(operation));
+    }
+
+    @GetMapping("/audit/logs")
+    public ResponseEntity<AuditLogPageResponseDTO> getAuditLogs(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        var logs = adminPort.getAuditLogs();
+        AuditLogRestMapper mapper = new AuditLogRestMapper();
+        return ResponseEntity.ok(mapper.toPageResponse(logs, page, size, logs.size()));
     }
 }

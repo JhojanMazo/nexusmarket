@@ -76,7 +76,7 @@ CREATE TABLE dbo.warehouses (
     postal_code NVARCHAR(100) NOT NULL,
     reference NVARCHAR(255) NULL,
     type VARCHAR(30) NOT NULL,
-    seller_id UNIQUEIDENTIFIER NULL,
+    seller_id UNIQUEIDENTIFIER NULL CONSTRAINT fk_warehouses_seller FOREIGN KEY REFERENCES dbo.users(user_id),
     capacity FLOAT NOT NULL,
     created_at DATETIME2 NULL,
     updated_at DATETIME2 NULL
@@ -127,6 +127,7 @@ CREATE TABLE dbo.cart_items (
 IF OBJECT_ID('dbo.orders', 'U') IS NULL
 CREATE TABLE dbo.orders (
     order_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    version BIGINT NULL,
     buyer_id UNIQUEIDENTIFIER NOT NULL CONSTRAINT fk_orders_buyer FOREIGN KEY REFERENCES dbo.users(user_id),
     delivery_street NVARCHAR(255) NOT NULL,
     delivery_city NVARCHAR(255) NOT NULL,
@@ -139,6 +140,9 @@ CREATE TABLE dbo.orders (
     created_at DATETIME2 NULL,
     updated_at DATETIME2 NULL
 );
+IF OBJECT_ID('dbo.orders', 'U') IS NOT NULL
+    AND COL_LENGTH('dbo.orders', 'version') IS NULL
+    ALTER TABLE dbo.orders ADD version BIGINT NULL;
 
 IF OBJECT_ID('dbo.order_items', 'U') IS NULL
 CREATE TABLE dbo.order_items (
@@ -178,9 +182,13 @@ CREATE TABLE dbo.return_requests (
     request_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     order_id UNIQUEIDENTIFIER NOT NULL CONSTRAINT fk_return_requests_order FOREIGN KEY REFERENCES dbo.orders(order_id),
     status VARCHAR(30) NOT NULL,
+    reason NVARCHAR(500) NULL,
     created_at DATETIME2 NULL,
     updated_at DATETIME2 NULL
 );
+IF OBJECT_ID('dbo.return_requests', 'U') IS NOT NULL
+    AND COL_LENGTH('dbo.return_requests', 'reason') IS NULL
+    ALTER TABLE dbo.return_requests ADD reason NVARCHAR(500) NULL;
 
 IF OBJECT_ID('dbo.refunds', 'U') IS NULL
 CREATE TABLE dbo.refunds (
@@ -203,3 +211,21 @@ CREATE TABLE dbo.operations (
     payload NVARCHAR(MAX) NULL,
     created_at DATETIME2 NOT NULL
 );
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_products_status_type' AND object_id = OBJECT_ID('dbo.products'))
+    CREATE INDEX idx_products_status_type ON dbo.products(status, product_type);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_products_seller_id' AND object_id = OBJECT_ID('dbo.products'))
+    CREATE INDEX idx_products_seller_id ON dbo.products(seller_id);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_orders_buyer_status' AND object_id = OBJECT_ID('dbo.orders'))
+    CREATE INDEX idx_orders_buyer_status ON dbo.orders(buyer_id, status);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_inventories_product_status' AND object_id = OBJECT_ID('dbo.inventories'))
+    CREATE INDEX idx_inventories_product_status ON dbo.inventories(product_id, status);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_return_requests_order' AND object_id = OBJECT_ID('dbo.return_requests'))
+    CREATE INDEX idx_return_requests_order ON dbo.return_requests(order_id);
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_operations_created_at' AND object_id = OBJECT_ID('dbo.operations'))
+    CREATE INDEX idx_operations_created_at ON dbo.operations(created_at DESC);

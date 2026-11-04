@@ -5,6 +5,7 @@ import application.domain.enums.ApprovalDecision;
 import application.domain.enums.AuditSeverity;
 import application.domain.exceptions.ResourceNotFoundException;
 import application.domain.models.AdministrativeReport;
+import application.domain.models.AuditLog;
 import application.domain.models.Inventory;
 import application.domain.models.Invoice;
 import application.domain.models.Operation;
@@ -16,6 +17,7 @@ import application.domain.models.Shipment;
 import application.domain.models.User;
 import application.domain.models.Warehouse;
 import application.domain.ports.in.SupervisorPort;
+import application.domain.ports.out.AuditLogRepositoryPort;
 import application.domain.ports.out.InventoryRepositoryPort;
 import application.domain.ports.out.InvoiceRepositoryPort;
 import application.domain.ports.out.OperationRepositoryPort;
@@ -53,6 +55,9 @@ public class SupervisorUseCaseImpl implements SupervisorPort {
     private final ProductRepositoryPort productRepository;
     private final UserRepositoryPort userRepository;
     private final AdministrativeReportsConsolidationService administrativeReportsConsolidationService;
+
+    @Autowired(required = false)
+    private AuditLogRepositoryPort auditLogRepositoryPort;
 
     @Autowired
     public SupervisorUseCaseImpl(OrderRepositoryPort orderRepository,
@@ -161,9 +166,28 @@ public class SupervisorUseCaseImpl implements SupervisorPort {
             if (request.getStatus() == ReturnRequest.ReturnRequestStatus.REQUESTED) {
                 request.approve();
             }
+            if (amount != null && request.getOrder() != null && amount.compareTo(request.getOrder().total().amount()) > 0) {
+                throw new IllegalArgumentException("El monto a reembolsar (" + amount + ") no puede superar el total de la orden (" + request.getOrder().total().amount() + ")");
+            }
             Currency currency = request.getOrder() != null ? request.getOrder().subtotal().currency() : Currency.getInstance("USD");
-            Refund refund = Refund.create(request, new Money(amount != null ? amount : BigDecimal.TEN, currency));
+            BigDecimal effectiveAmount = amount != null ? amount : (request.getOrder() != null ? request.getOrder().total().amount() : BigDecimal.TEN);
+            Refund refund = Refund.create(request, new Money(effectiveAmount, currency));
             refund.process();
+            if (request.getStatus() == ReturnRequest.ReturnRequestStatus.APPROVED) {
+                request.complete();
+            }
+            if (inventoryRepository != null && request.getOrder() != null && request.getOrder().getItems() != null) {
+                for (var item : request.getOrder().getItems()) {
+                    if (item.product() != null && item.product().requiresShipping()) {
+                        List<Inventory> lots = inventoryRepository.findByProductId(item.product().getProductId());
+                        if (!lots.isEmpty()) {
+                            Inventory inv = lots.get(0);
+                            inv.restockFromReturn(item.quantity());
+                            inventoryRepository.save(inv);
+                        }
+                    }
+                }
+            }
             if (returnRequestRepository != null) {
                 returnRequestRepository.save(request);
             }
@@ -182,11 +206,12 @@ public class SupervisorUseCaseImpl implements SupervisorPort {
     }
 
     private ReturnRequest resolveReturnRequest(UUID returnId) {
-        if (returnRequestRepository != null && returnId != null) {
-            var found = returnRequestRepository.findById(returnId);
-            if (found.isPresent()) {
-                return found.get();
+        if (returnRequestRepository != null) {
+            if (returnId == null) {
+                throw new IllegalArgumentException("El identificador de la devolución es obligatorio");
             }
+            return returnRequestRepository.findById(returnId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Solicitud de devolución", returnId));
         }
         Order fallbackOrder = orderRepository != null ? orderRepository.findAll().stream().findFirst().orElse(null) : null;
         return fallbackOrder != null ? ReturnRequest.create(fallbackOrder) : null;
@@ -209,6 +234,15 @@ public class SupervisorUseCaseImpl implements SupervisorPort {
     @Transactional(readOnly = true)
     public List<Operation> getAuditOperations() {
         return operationRepositoryPort.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AuditLog> getAuditLogs() {
+        if (auditLogRepositoryPort == null) {
+            return Collections.emptyList();
+        }
+        return auditLogRepositoryPort.findAll();
     }
 
     @Override

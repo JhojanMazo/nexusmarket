@@ -35,9 +35,17 @@ public class ReturnRequestJpaEntity extends AuditableJpaEntity {
     @Column(name = "status", nullable = false, length = 30)
     private ReturnRequest.ReturnRequestStatus status;
 
+    @Column(name = "reason", length = 500)
+    private String reason;
+
     public ReturnRequestJpaEntity(UUID requestId, OrderJpaEntity order, ReturnRequest.ReturnRequestStatus status) {
+        this(requestId, order, status, "Customer requested return");
+    }
+
+    public ReturnRequestJpaEntity(UUID requestId, OrderJpaEntity order, ReturnRequest.ReturnRequestStatus status, String reason) {
         this.requestId = requestId;
         this.order = order;
         this.status = status;
+        this.reason = reason;
     }
 }

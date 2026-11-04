@@ -90,13 +90,25 @@ public class BuyerRestController {
 
     @PostMapping("/register")
     public ResponseEntity<BuyerResponseDTO> registerBuyer(@RequestBody CreateBuyerRequestDTO request) {
-        Buyer buyer = buyerPort.registerBuyer(
-                request.fullName(),
-                request.email(),
-                request.documentType(),
-                request.documentNumber(),
-                userRestMapper.toAddress(request.primaryAddress())
-        );
+        Buyer buyer;
+        if (request.password() != null && !request.password().isBlank()) {
+            buyer = buyerPort.registerBuyer(
+                    request.fullName(),
+                    request.email(),
+                    request.documentType(),
+                    request.documentNumber(),
+                    userRestMapper.toAddress(request.primaryAddress()),
+                    request.password()
+            );
+        } else {
+            buyer = buyerPort.registerBuyer(
+                    request.fullName(),
+                    request.email(),
+                    request.documentType(),
+                    request.documentNumber(),
+                    userRestMapper.toAddress(request.primaryAddress())
+            );
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(userRestMapper.toBuyerResponse(buyer));
     }
 

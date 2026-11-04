@@ -64,9 +64,39 @@ public class AuthRestController {
 
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        String token = authHeader != null && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "";
+        String token = authHeader != null && authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : "";
         publicAccessPort.logout(token);
         return ResponseEntity.ok(Map.of("message", "Sesión cerrada exitosamente"));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponseDTO> refresh(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        String token = authHeader != null && authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : "";
+        AuthenticationResult result = publicAccessPort.refreshToken(token);
+        LoginResponseDTO response = LoginResponseDTO.bearer(
+                result.token(),
+                result.userId(),
+                result.email(),
+                result.role()
+        );
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/password-recovery/request")
+    public ResponseEntity<Map<String, String>> requestPasswordRecovery(@RequestBody Map<String, String> payload) {
+        String email = payload != null ? payload.get("email") : null;
+        publicAccessPort.requestPasswordRecovery(email);
+        return ResponseEntity.ok(Map.of(
+                "message", "Si el correo electrónico está registrado en NexusMarket, se han enviado las instrucciones de recuperación."
+        ));
+    }
+
+    @PostMapping("/password-recovery/reset")
+    public ResponseEntity<Map<String, String>> resetPassword(@RequestBody Map<String, String> payload) {
+        String token = payload != null ? payload.get("token") : null;
+        String newPassword = payload != null ? payload.get("newPassword") : null;
+        publicAccessPort.resetPassword(token, newPassword);
+        return ResponseEntity.ok(Map.of("message", "Contraseña actualizada exitosamente"));
     }
 
     @PostMapping("/register")

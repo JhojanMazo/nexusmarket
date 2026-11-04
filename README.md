@@ -19,8 +19,10 @@ NexusMarket gestiona el ciclo de vida completo de un marketplace multi-actor par
   - Catálogo interactivo con **búsqueda en tiempo real** (`search`), **filtro por tipo** (`PHYSICAL` / `DIGITAL`), **rango de precios** (`minPrice` / `maxPrice`), **ordenamiento** (`sortBy`, `direction`) y **paginación** (`GET /api/auth/catalog`).
   - Vista de **Detalle de Producto (`#/product/{id}`)** con ilustraciones vectoriales dedicadas, especificaciones de variante (`SKU`), precio formateado en moneda local (`COP`) y **consulta de stock real por bodega** (`GET /api/auth/catalog/{productId}/stock`).
 - **Autenticación, Registro y Control de Acceso Basado en Roles (RBAC):**
-  - Inicio de sesión (`#/login`) con validación de credenciales contra BCrypt y emisión de JWT firmado con `HMAC-SHA256`.
-  - Registro público de compradores (`#/register`) con dirección principal e identificación única.
+  - Inicio de sesión (`#/login`) con validación de credenciales contra BCrypt (`$2a$10$`), protección contra fuerza bruta (bloqueo temporal tras 5 intentos fallidos) y emisión de JWT firmado con `HMAC-SHA256` y `jti` único.
+  - Recuperación y restablecimiento seguro de contraseña (`POST /api/auth/password-recovery/request` y `POST /api/auth/password-recovery/reset`) con respuesta anti-enumeración y validación de política de contraseñas.
+  - Renovación de sesión (`POST /api/auth/refresh`) y revocación inmediata de tokens en cierre de sesión (`POST /api/auth/logout`).
+  - Registro público de compradores (`#/register`) con validación de política de contraseña, dirección principal e identificación única.
   - Restauración automática de sesión en navegador (`sessionStorage`), decodificación y verificación de expiración (`exp`) del JWT, cierre de sesión limpio y protección de rutas por rol y titularidad (`401 Unauthorized` y `403 Forbidden` activos en `JwtAuthenticationFilter` y `SecurityConfig`).
 - **Experiencia de Compra E-Commerce (`#/cart`, `#/checkout`, `#/orders`, `#/profile`):**
   - Carrito de compras persistente en base de datos relacional (`GET/POST /api/buyers/{buyerId}/cart`), consolidación automática de cantidades, actualización de cantidad (`PUT /api/buyers/carts/{cartId}/items/{productId}`) y eliminación de ítems.
@@ -33,7 +35,8 @@ NexusMarket gestiona el ciclo de vida completo de un marketplace multi-actor par
   - **Supervisor:** Reporte consolidado de auditoría, aprobación/rechazo de solicitudes de devolución (`ReturnRequest`), emisión de reembolsos (`Refund`), moderación de productos/usuarios y registro de operaciones auditadas.
   - **Operador Logístico:** Tablero de órdenes pagadas listas para despacho, coordinación de envíos (`Shipment`) con transportadora y guía (`trackingNumber`), confirmación de entrega final (`DELIVERED`) con salida definitiva de kardex (`SALE_OUTBOUND`) y consulta de movimientos de inventario.
 - **Capacidades Transversales Enterprise:**
-  - **Concurrencia Optimista (`@Version`):** Control de colisiones concurrentes en `ProductJpaEntity` e `InventoryJpaEntity` con respuesta estándar `409 CONFLICT`.
+  - **Concurrencia Optimista (`@Version`):** Control de colisiones concurrentes en `ProductJpaEntity`, `InventoryJpaEntity` y `OrderJpaEntity` con respuesta estándar `409 CONFLICT`.
+  - **Cabeceras de Seguridad HTTP:** Inyección activa de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, `Referrer-Policy: strict-origin-when-cross-origin` y `Cache-Control: no-store` en todas las respuestas de la API.
   - **JPA Auditing Automático:** Trazabilidad `createdAt` y `updatedAt` mediante `AuditableJpaEntity`.
   - **Auditoría NoSQL Automatizada (Spring AOP + MongoDB):** Anotación `@Auditable` e interceptor `AuditAspect` que registra operaciones críticas en MongoDB sin acoplar los casos de uso.
   - **Eventos de Dominio Asíncronos y Scheduler TTL:** Publicación de `OrderPlacedEvent`, `OrderPaidEvent` y `OrderCancelledEvent`, generación automática de facturas tras el pago, notificaciones estructuradas (`EmailNotificationServiceAdapter`) y liberación automática de stock reservado para órdenes `PENDING_PAYMENT` expiradas (`ExpiredOrderScheduler`).
@@ -108,11 +111,11 @@ nexusmarket/
 
 | Rol (`UserRole`) | Correo de Demostración | Contraseña Demo | Rutas Web Autorizadas | Prefijo API Protegido (RBAC) |
 |---|---|---|---|---|
-| `BUYER` | `buyer@nexusmarket.com` | `NexusMarket2025!` | `#/cart`, `#/checkout`, `#/orders`, `#/profile` | `/api/buyers/**` (con validación de titularidad `buyerId`) |
-| `SELLER` | `seller@nexusmarket.com` | `NexusMarket2025!` | `#/seller` | `/api/sellers/**` (con validación de titularidad `sellerId`) |
-| `LOGISTICS_OPERATOR` | `logistics@nexusmarket.com` | `NexusMarket2025!` | `#/logistics` | `/api/logistics/**` |
-| `SUPERVISOR` | `supervisor@nexusmarket.com` | `NexusMarket2025!` | `#/supervisor` | `/api/supervisors/**` |
-| `ADMINISTRATOR` | `admin@nexusmarket.com` | `NexusMarket2025!` | `#/admin` + acceso transversal | `/api/admin/**` y acceso administrativo transversal |
+| `BUYER` | `buyer@nexusmarket.com` | `NexusMarket2026!` | `#/cart`, `#/checkout`, `#/orders`, `#/profile` | `/api/buyers/**` (con validación de titularidad `buyerId`) |
+| `SELLER` | `seller@nexusmarket.com` | `NexusMarket2026!` | `#/seller` | `/api/sellers/**` (con validación de titularidad `sellerId`) |
+| `LOGISTICS_OPERATOR` | `logistics@nexusmarket.com` | `NexusMarket2026!` | `#/logistics` | `/api/logistics/**` |
+| `SUPERVISOR` | `supervisor@nexusmarket.com` | `NexusMarket2026!` | `#/supervisor` | `/api/supervisors/**` |
+| `ADMINISTRATOR` | `admin@nexusmarket.com` | `NexusMarket2026!` | `#/admin` + acceso transversal | `/api/admin/**` y acceso administrativo transversal |
 
 ---
 
@@ -146,14 +149,14 @@ cp .env.example .env
 Desde la raíz del repositorio:
 
 ```bash
-# 1. Ejecutar toda la suite Backend + E2E (185 tests) y empaquetar el Fat JAR ejecutable
+# 1. Ejecutar toda la suite Backend + E2E (204 tests) y empaquetar el Fat JAR ejecutable
 ./mvnw clean verify
 
 # 2. Ejecutar la suite Backend + E2E en modo offline (sin descargas de red)
 ./mvnw -o clean verify
 
-# 3. Ejecutar la suite automatizada de pruebas del Frontend (Node Test Runner)
-cd frontend && npm test
+# 3. Sincronizar recursos estáticos y ejecutar la suite automatizada de pruebas del Frontend (5 suites)
+cd frontend && npm run sync && npm test
 ```
 
 ---
@@ -206,33 +209,82 @@ cd frontend && npm start
 ### Endpoints Principales por Módulo
 | Módulo | Método y Ruta | Descripción |
 |---|---|---|
-| **Auth & Catálogo** | `POST /api/auth/register` | Registro público de comprador |
-| | `POST /api/auth/login` | Autenticación y emisión de JWT Bearer |
+| **Auth & Catálogo** | `POST /api/auth/register` | Registro público de comprador con validación de política de contraseña |
+| | `POST /api/auth/login` | Autenticación contra BCrypt, control anti-fuerza bruta y emisión de JWT Bearer |
+| | `POST /api/auth/refresh` | Renovación de JWT y revocación inmediata del token anterior |
+| | `POST /api/auth/logout` | Revocación inmediata del token JWT en servidor |
+| | `POST /api/auth/password-recovery/request` | Solicitud de recuperación de contraseña (respuesta anti-enumeración) |
+| | `POST /api/auth/password-recovery/reset` | Restablecimiento de contraseña mediante token de un solo uso |
 | | `GET /api/auth/catalog` | Catálogo público con búsqueda (`search`), filtros (`type`, `minPrice`, `maxPrice`), ordenamiento y paginación |
 | | `GET /api/auth/catalog/{productId}/stock` | Consulta pública de disponibilidad de stock por producto |
-| **Compradores** | `GET / POST /api/buyers/{buyerId}/cart` | Obtener o crear carrito de compras |
-| | `POST /api/buyers/carts/{cartId}/items` | Agregar producto publicado al carrito |
+| **Compradores** | `GET / POST /api/buyers/{buyerId}/cart` | Obtener o crear carrito de compras (validación de titularidad `buyerId`) |
+| | `POST /api/buyers/carts/{cartId}/items` | Agregar producto publicado al carrito (usa precio autoritativo del catálogo) |
 | | `PUT /api/buyers/carts/{cartId}/items/{productId}` | Actualizar cantidad de un ítem del carrito |
 | | `DELETE /api/buyers/carts/{cartId}/items/{productId}` | Eliminar producto del carrito |
 | | `POST /api/buyers/orders` | Crear orden desde el carrito (`OrderPlacedEvent`) |
-| | `POST /api/buyers/orders/{orderId}/pay` | Pagar orden, reservar stock y emitir `OrderPaidEvent` |
-| | `POST /api/buyers/orders/{orderId}/cancel` | Cancelar orden pendiente (`OrderCancelledEvent`) |
-| | `POST /api/buyers/orders/{orderId}/returns` | Solicitar devolución de orden pagada/entregada |
-| **Vendedores** | `POST /api/sellers/products` | Crear producto (invalida caché `products_catalog`) |
-| | `PATCH /api/sellers/products/{productId}/price` | Actualizar precio con bloqueo optimista (`@Version`) |
-| | `PATCH /api/sellers/products/{productId}/status` | Cambiar estado de publicación del producto |
+| | `POST /api/buyers/orders/{orderId}/pay` | Pagar orden validando monto exacto, reservar stock y emitir `OrderPaidEvent` |
+| | `POST /api/buyers/orders/{orderId}/cancel` | Cancelar orden pendiente (`OrderCancelledEvent`) y liberar stock si estaba en `PENDING_PAYMENT` |
+| | `POST /api/buyers/orders/{orderId}/return` | Solicitar devolución de orden entregada con motivo (`reason`) |
+| **Vendedores** | `POST /api/sellers/products` | Crear producto asociado al `sellerId` autenticado (invalida caché `products_catalog`) |
+| | `PATCH /api/sellers/products/{productId}/price` | Actualizar precio con validación de propiedad y bloqueo optimista (`@Version`) |
+| | `PATCH /api/sellers/products/{productId}/status` | Cambiar estado de publicación del producto propio |
 | | `GET /api/sellers/{sellerId}/warehouses` | Listar bodegas asociadas al vendedor |
 | | `POST /api/sellers/{sellerId}/inventory/initial` | Registrar lote inicial de inventario |
 | | `PATCH /api/sellers/{sellerId}/inventory/{inventoryId}/adjust` | Ajustar stock disponible con motivo |
 | **Logística** | `POST /api/logistics/shipments/dispatch` | Coordinar despacho de orden pagada |
-| | `PATCH /api/logistics/shipments/{shipmentId}/deliver` | Confirmar entrega final de envío (`SALE_OUTBOUND`) |
-| **Supervisores** | `PATCH /api/supervisors/returns/{returnRequestId}/approve` | Aprobar solicitud de devolución |
-| | `POST /api/supervisors/refunds` | Emitir reembolso sobre devolución aprobada |
+| | `PATCH /api/logistics/shipments/{shipmentId}/deliver` | Confirmar entrega final de envío (`SALE_OUTBOUND`) y descontar stock reservado |
+| **Supervisores** | `POST /api/supervisors/returns/{returnId}/approve` | Aprobar solicitud de devolución |
+| | `POST /api/supervisors/returns/{returnId}/refund` | Emitir reembolso validando tope de orden y reintegrando stock físico |
+| | `GET /api/supervisors/audit/logs` | Consultar registros de auditoría documental (MongoDB) |
 | | `GET /api/supervisors/reports/consolidated` | Consultar reporte consolidado de auditoría |
 | **Administración** | `POST /api/admin/users/staff` | Registrar personal (`ADMINISTRATOR`, `SUPERVISOR`, `LOGISTICS_OPERATOR`) |
-| | `POST /api/admin/users/sellers` | Registrar vendedor con bodega inicial |
+| | `POST /api/admin/users/seller` | Registrar vendedor (opcionalmente con bodega inicial) |
 | | `POST /api/admin/warehouses` | Crear bodega de marketplace o de vendedor |
 | | `POST /api/admin/invoices` | Generar factura fiscal de una orden |
+| | `POST /api/admin/refunds` | Procesar reembolso administrativo con reintegro de stock |
+| | `GET /api/admin/audit/logs` | Consultar bitácora de auditoría NoSQL paginada |
+
+### Ejemplos de Solicitudes y Respuestas de la API
+
+#### 1. Inicio de Sesión (`POST /api/auth/login`)
+**Solicitud:**
+```json
+{
+  "email": "buyer@nexusmarket.com",
+  "password": "NexusMarket2026!"
+}
+```
+**Respuesta (`200 OK`):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenType": "Bearer",
+  "userId": "c1f8a2b0-1111-4222-8333-444455556666",
+  "email": "buyer@nexusmarket.com",
+  "role": "BUYER"
+}
+```
+
+#### 2. Pago de Orden con Validación de Importe e Idempotencia (`POST /api/buyers/orders/{orderId}/pay`)
+**Solicitud:**
+```json
+{
+  "orderId": "8f14e45f-ceea-467f-a814-2b7a8c9d0e1f",
+  "amount": 14500000,
+  "currency": "COP",
+  "paymentMethod": "CREDIT_CARD"
+}
+```
+**Respuesta (`200 OK`):**
+```json
+{
+  "orderId": "8f14e45f-ceea-467f-a814-2b7a8c9d0e1f",
+  "status": "APPROVED",
+  "orderStatus": "PAID",
+  "amount": 14500000,
+  "paymentMethod": "CREDIT_CARD"
+}
+```
 
 ### Colección de Postman
 Importa en Postman los archivos ubicados en [`postman/`](./postman/):

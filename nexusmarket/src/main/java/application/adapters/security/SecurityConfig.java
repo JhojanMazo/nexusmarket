@@ -77,6 +77,10 @@ public class SecurityConfig {
             return "LOGISTICS_OPERATOR".equals(role);
         }
 
+        if (PATH_MATCHER.match("/api/sellers/register", path)) {
+            return false;
+        }
+
         if (PATH_MATCHER.match("/api/sellers/**", path)) {
             if (!"SELLER".equals(role)) {
                 return false;

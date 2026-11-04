@@ -1,6 +1,9 @@
 package application.adapters.useCases;
 
 import application.adapters.aspect.Auditable;
+import application.adapters.security.BCryptPasswordServiceAdapter;
+import application.adapters.security.SecurityUserContext;
+import application.adapters.security.dtos.AuthenticatedUserPrincipal;
 import application.domain.enums.AuditSeverity;
 import application.domain.enums.BuyerCommercialStatus;
 import application.domain.enums.OrderStatus;
@@ -11,6 +14,7 @@ import application.domain.exceptions.BusinessRuleException;
 import application.domain.exceptions.EntityNotFoundException;
 import application.domain.exceptions.ResourceNotFoundException;
 import application.domain.models.AdministrativeReport;
+import application.domain.models.AuditLog;
 import application.domain.models.Buyer;
 import application.domain.models.Inventory;
 import application.domain.models.Invoice;
@@ -24,10 +28,12 @@ import application.domain.models.Shipment;
 import application.domain.models.User;
 import application.domain.models.Warehouse;
 import application.domain.ports.in.AdministratorPort;
+import application.domain.ports.out.AuditLogRepositoryPort;
 import application.domain.ports.out.InventoryRepositoryPort;
 import application.domain.ports.out.InvoiceRepositoryPort;
 import application.domain.ports.out.OperationRepositoryPort;
 import application.domain.ports.out.OrderRepositoryPort;
+import application.domain.ports.out.PasswordServicePort;
 import application.domain.ports.out.ProductRepositoryPort;
 import application.domain.ports.out.RefundRepositoryPort;
 import application.domain.ports.out.ReturnRequestRepositoryPort;
@@ -75,6 +81,10 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     private final ReturnsAdministrationService returnsAdministrationService;
     private final RefundsManagementService refundsManagementService;
     private final AdministrativeReportsConsolidationService administrativeReportsConsolidationService;
+    private final PasswordServicePort passwordServicePort = new BCryptPasswordServiceAdapter();
+
+    @Autowired(required = false)
+    private AuditLogRepositoryPort auditLogRepositoryPort;
 
     @Autowired
     public AdministratorUseCaseImpl(UserRepositoryPort userRepository,
@@ -146,11 +156,13 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     public User registerStaff(String fullName, String email, String docType, String docNumber, UserRole role) {
         uniqueIdentityValidationService.validateUniqueIdentity(userRepository, email, docType, docNumber);
 
+        String defaultHash = passwordServicePort.encode("Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!");
         User staff = User.createStaff(
                 fullName,
                 new Email(email),
                 new IdentityDocument(docType, docNumber),
-                role
+                role,
+                defaultHash
         );
         return userRepository.save(staff);
     }
@@ -167,6 +179,7 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
                 new IdentityDocument(docType, docNumber),
                 onboardingDate != null ? onboardingDate : LocalDate.now()
         );
+        seller.setPasswordHash(passwordServicePort.encode("Nx" + UUID.randomUUID().toString().replace("-", "") + "9a!"));
         User saved = userRepository.save(seller);
         return (Seller) saved;
     }
@@ -189,6 +202,10 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     @Transactional
     @Auditable(action = "USER_STATUS_UPDATED", resource = "User", severity = AuditSeverity.CRITICAL)
     public User updateUserStatus(UUID userId, UserStatus newStatus) {
+        AuthenticatedUserPrincipal principal = SecurityUserContext.get().orElse(null);
+        if (principal != null && principal.userId() != null && principal.userId().equals(userId) && newStatus != UserStatus.ACTIVE) {
+            throw new BusinessRuleException("Un administrador no puede bloquear o desactivar su propia cuenta");
+        }
         User user = getUserById(userId);
         user.setStatus(newStatus);
         return userRepository.save(user);
@@ -287,9 +304,26 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     public Refund processRefund(UUID returnRequestId, BigDecimal amount, String currencyCode) {
         ReturnRequest request = returnRequestRepository.findById(returnRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Solicitud de devolución", returnRequestId));
-        Currency currency = currencyCode != null ? Currency.getInstance(currencyCode) : Currency.getInstance("USD");
+        if (amount != null && request.getOrder() != null && amount.compareTo(request.getOrder().total().amount()) > 0) {
+            throw new IllegalArgumentException("El monto a reembolsar (" + amount + ") no puede superar el total de la orden (" + request.getOrder().total().amount() + ")");
+        }
+        Currency currency = (currencyCode != null && !currencyCode.isBlank())
+                ? Currency.getInstance(currencyCode.trim().toUpperCase(Locale.ROOT))
+                : (request.getOrder() != null ? request.getOrder().total().currency() : Currency.getInstance("USD"));
         Refund refund = refundsManagementService.processRefund(request, new Money(amount, currency));
         returnsAdministrationService.completeReturn(request);
+        if (inventoryRepository != null && request.getOrder() != null && request.getOrder().getItems() != null) {
+            for (var item : request.getOrder().getItems()) {
+                if (item.product() != null && item.product().requiresShipping()) {
+                    List<Inventory> lots = inventoryRepository.findByProductId(item.product().getProductId());
+                    if (!lots.isEmpty()) {
+                        Inventory inv = lots.get(0);
+                        inv.restockFromReturn(item.quantity());
+                        inventoryRepository.save(inv);
+                    }
+                }
+            }
+        }
         returnRequestRepository.save(request);
         return refundRepository.save(refund);
     }
@@ -416,5 +450,14 @@ public class AdministratorUseCaseImpl implements AdministratorPort {
     @Transactional(readOnly = true)
     public List<Operation> getAllOperations() {
         return operationRepositoryPort.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AuditLog> getAuditLogs() {
+        if (auditLogRepositoryPort == null) {
+            return Collections.emptyList();
+        }
+        return auditLogRepositoryPort.findAll();
     }
 }
